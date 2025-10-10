@@ -139,6 +139,10 @@ MargWatch/app/debug/
 !CONTRIBUTING.md
 !LICENSE.md
 !TEAM_TODO_LIST.md
+!docs/*.md
+!GITHUB_REPOSITORY_STRUCTURE.md
+!TEAM_COLLABORATION_STRATEGY.md
+!TEAM_SETUP_COMPLETE.md
 
 # Scripts and automation files
 *.bat
