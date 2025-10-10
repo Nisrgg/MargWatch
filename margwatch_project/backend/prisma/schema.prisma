@@ -1,0 +1,165 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  WORKER
+}
+
+enum ComplaintStatus {
+  REGISTERED
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum IssueCategory {
+  POTHOLE
+  ROAD_INSTABILITY
+  STREETLIGHT_DAMAGE
+  TREE_DAMAGE
+  OTHER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true)
+  fcmToken  String?  // Firebase Cloud Messaging token
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  complaints Complaint[]
+  workOrders WorkOrder[]
+
+  @@map("users")
+}
+
+model Complaint {
+  id            String         @id @default(cuid())
+  title         String
+  description   String
+  category      IssueCategory
+  status        ComplaintStatus @default(REGISTERED)
+  latitude      Float
+  longitude     Float
+  address       String?
+  imageUrl      String?        // JSON array of image URLs from Cloudinary
+  imageCount    Int?           @default(1) // Number of images uploaded
+  mlCategory    IssueCategory? // ML predicted category
+  mlConfidence  Float?         // ML confidence score
+  mlModelVersion String?       // ML model version used
+  mlProcessingTime Float?      // ML processing time in seconds
+  
+  // User who reported the complaint
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Admin who approved/rejected
+  approvedBy  String?
+  approvedAt  DateTime?
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  workOrders WorkOrder[]
+  updates    ComplaintUpdate[]
+
+  @@map("complaints")
+}
+
+model WorkOrder {
+  id          String         @id @default(cuid())
+  complaintId String
+  complaint   Complaint      @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  
+  // Worker assigned to this work order
+  workerId    String
+  worker      User           @relation(fields: [workerId], references: [id])
+  
+  status      ComplaintStatus @default(APPROVED)
+  priority    Int            @default(1) // 1 = Low, 2 = Medium, 3 = High
+  
+  assignedAt  DateTime       @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  
+  workDescription String?
+  materialsUsed   String?
+  cost            Float?
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  updates    WorkOrderUpdate[]
+
+  @@map("work_orders")
+}
+
+model ComplaintUpdate {
+  id          String   @id @default(cuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  
+  status      ComplaintStatus
+  description String?
+  imageUrl    String?
+  
+  createdAt   DateTime @default(now())
+
+  @@map("complaint_updates")
+}
+
+model WorkOrderUpdate {
+  id          String   @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  
+  status      ComplaintStatus
+  description String?
+  imageUrl    String?
+  progress    Int?     // 0-100 percentage
+  
+  createdAt   DateTime @default(now())
+
+  @@map("work_order_updates")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // 'complaint_status', 'work_update', 'general'
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model SystemSettings {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  
+  @@map("system_settings")
+}

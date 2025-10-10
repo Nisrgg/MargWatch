@@ -1,0 +1,41 @@
+{
+  "name": "margwatch",
+  "version": "1.0.0",
+  "description": "MargWatch - Road Issue Reporting Portal with Express.js, TypeScript, Redis, PostgreSQL, and Prisma ORM",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd backend && npm run build",
+    "start": "cd backend && npm start",
+    "test": "cd backend && npm test",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "db:generate": "cd backend && npx prisma generate",
+    "db:push": "cd backend && npx prisma db push",
+    "db:seed": "cd backend && npx prisma db seed",
+    "db:studio": "cd backend && npx prisma studio"
+  },
+  "keywords": [
+    "road-issues",
+    "complaint-management",
+    "express",
+    "typescript",
+    "prisma",
+    "postgresql",
+    "redis",
+    "docker",
+    "ml-service"
+  ],
+  "author": "MargWatch Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}
