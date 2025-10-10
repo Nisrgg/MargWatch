@@ -22,7 +22,7 @@ Each team member can clone only what they need using Git sparse checkout:
 
 #### **🤖 ML Developer (Team Member 2)**
 ```bash
-git clone --filter=blob:none --sparse-checkout <repo-url> margwatch-ml
+git clone --filter=blob:none --sparse-checkout https://github.com/nisargg705/MargWatch.git margwatch-ml
 cd margwatch-ml
 git sparse-checkout init --cone
 git sparse-checkout set ml-service/ backend/src/services/mlService.ts backend/src/controllers/complaintController.ts docs/
@@ -30,7 +30,7 @@ git sparse-checkout set ml-service/ backend/src/services/mlService.ts backend/sr
 
 #### **🖥️ Backend Developer (Team Member 1)**
 ```bash
-git clone --filter=blob:none --sparse-checkout <repo-url> margwatch-backend
+git clone --filter=blob:none --sparse-checkout https://github.com/nisargg705/MargWatch.git margwatch-backend
 cd margwatch-backend
 git sparse-checkout init --cone
 git sparse-checkout set backend/ admin-portal/ docs/ infrastructure/
@@ -38,7 +38,7 @@ git sparse-checkout set backend/ admin-portal/ docs/ infrastructure/
 
 #### **📱 Android Developer (You)**
 ```bash
-git clone <repo-url> margwatch-full
+git clone https://github.com/nisargg705/MargWatch.git margwatch-full
 cd margwatch-full
 ```
 
@@ -47,7 +47,7 @@ cd margwatch-full
 ### **Full Development Setup**
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone https://github.com/nisargg705/MargWatch.git
 cd MargWatch
 
 # Start all services
