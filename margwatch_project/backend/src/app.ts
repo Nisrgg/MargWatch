@@ -125,7 +125,7 @@ app.post('/api/fcm/token', async (req, res) => {
 
     const token = authHeader.substring(7);
     const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'margwatch-super-secret-jwt-key-change-this-in-production-2024');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })());
     
     const { fcmToken } = req.body;
     
@@ -171,7 +171,7 @@ app.get('/api/notifications', async (req, res) => {
 
     const token = authHeader.substring(7);
     const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'margwatch-super-secret-jwt-key-change-this-in-production-2024');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })());
     
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -226,7 +226,7 @@ app.get('/api/notifications/count', async (req, res) => {
 
     const token = authHeader.substring(7);
     const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'margwatch-super-secret-jwt-key-change-this-in-production-2024');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })());
     
     const totalCount = await prisma.notification.count({
       where: { userId: decoded.id }

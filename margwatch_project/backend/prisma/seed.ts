@@ -7,7 +7,7 @@ async function main() {
   console.log('🌱 Starting database seed...');
 
   // Create admin user
-  const adminPassword = await bcrypt.hash('admin123', 12);
+  const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 12);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@roadportal.com' },
     update: {},
@@ -23,7 +23,7 @@ async function main() {
   console.log('✅ Admin user created:', admin.email);
 
   // Create sample workers
-  const worker1Password = await bcrypt.hash('worker123', 12);
+  const worker1Password = await bcrypt.hash(process.env.WORKER_PASSWORD || 'worker123', 12);
   const worker1 = await prisma.user.upsert({
     where: { email: 'worker1@roadportal.com' },
     update: {},
@@ -37,7 +37,7 @@ async function main() {
     },
   });
 
-  const worker2Password = await bcrypt.hash('worker123', 12);
+  const worker2Password = await bcrypt.hash(process.env.WORKER_PASSWORD || 'worker123', 12);
   const worker2 = await prisma.user.upsert({
     where: { email: 'worker2@roadportal.com' },
     update: {},
@@ -54,7 +54,7 @@ async function main() {
   console.log('✅ Worker users created:', worker1.email, worker2.email);
 
   // Create sample regular user
-  const userPassword = await bcrypt.hash('user123', 12);
+  const userPassword = await bcrypt.hash(process.env.USER_PASSWORD || 'user123', 12);
   const user = await prisma.user.upsert({
     where: { email: 'user@roadportal.com' },
     update: {},
