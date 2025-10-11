@@ -35,7 +35,7 @@ export class WebSocketService {
             }
 
             try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'margwatch-super-secret-jwt-key-change-this-in-production-2024') as any;
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })()) as any;
                 console.log(`✅ WebSocket authenticated for user: ${decoded.email}`);
                 
                 // Store client connection

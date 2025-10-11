@@ -14,7 +14,7 @@ export const config = {
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   
   // JWT
-  jwtSecret: process.env.JWT_SECRET || 'margwatch-super-secret-jwt-key-change-this-in-production-2024',
+  jwtSecret: process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   
   // File Upload
