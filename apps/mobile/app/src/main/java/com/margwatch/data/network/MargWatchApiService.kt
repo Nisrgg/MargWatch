@@ -71,7 +71,7 @@ interface MargWatchApiService {
         @Query("limit") limit: Int? = null
     ): Response<GenericApiResponse<WorkOrderResponse>>
 
-    @GET("work-orders/{id}")
+    @GET("work-orders/{id}/details")
     suspend fun getWorkOrderById(
         @Header("Authorization") authorization: String,
         @Path("id") workOrderId: String

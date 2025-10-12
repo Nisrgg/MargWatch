@@ -120,18 +120,33 @@ firebase-debug.log
 firebase-debug.*.log
 firebase-service-account.json
 google-services.json
+**/firebase-service-account.json
+**/google-services.json
+
+# Environment files with secrets
+**/.env
+**/.env.local
+**/.env.production
+**/.env.staging
+**/local.properties
+**/local.properties.example
+
+# API Keys and Secrets
+**/api-keys.json
+**/secrets.json
+**/*-key.json
+**/*-secret.json
+**/credentials.json
 
 # Android
-MargWatch/app/build/
-MargWatch/build/
-MargWatch/.gradle/
-MargWatch/local.properties
-MargWatch/app/local.properties
-MargWatch/*.iml
-MargWatch/.idea/
-MargWatch/app/.idea/
-MargWatch/app/release/
-MargWatch/app/debug/
+**/app/build/
+**/build/
+**/.gradle/
+**/local.properties
+**/*.iml
+**/.idea/
+**/app/release/
+**/app/debug/
 
 # Documentation files (as requested)
 *.md

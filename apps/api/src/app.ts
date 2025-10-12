@@ -14,7 +14,7 @@ import complaintRoutes from './routes/complaints';
 import workOrderRoutes from './routes/workOrders';
 import adminRoutes from './routes/admin';
 import adminApprovalRoutes from './routes/adminApproval';
-import mlRoutes from './routes/ml';
+import notificationRoutes from './routes/notifications';
 
 // Import middleware
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
@@ -158,100 +158,6 @@ app.post('/api/fcm/token', async (req, res) => {
   }
 });
 
-// Notification routes (for mobile app compatibility)
-app.get('/api/notifications', async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access token is required'
-      });
-    }
-
-    const token = authHeader.substring(7);
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })());
-    
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const unreadOnly = req.query.unreadOnly === 'true';
-    
-    const skip = (page - 1) * limit;
-    
-    const whereClause: any = { userId: decoded.id };
-    if (unreadOnly) {
-      whereClause.isRead = false;
-    }
-    
-    const notifications = await prisma.notification.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit
-    });
-    
-    const total = await prisma.notification.count({ where: whereClause });
-    
-    return res.json({
-      success: true,
-      data: {
-        notifications,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit)
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Get notifications error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to get notifications'
-    });
-  }
-});
-
-app.get('/api/notifications/count', async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access token is required'
-      });
-    }
-
-    const token = authHeader.substring(7);
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })());
-    
-    const totalCount = await prisma.notification.count({
-      where: { userId: decoded.id }
-    });
-    
-    const unreadCount = await prisma.notification.count({
-      where: { userId: decoded.id, isRead: false }
-    });
-    
-    return res.json({
-      success: true,
-      data: {
-        total: totalCount,
-        unread: unreadCount
-      }
-    });
-  } catch (error) {
-    console.error('Get notification count error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to get notification count'
-    });
-  }
-});
-
 // Test FCM notification endpoint (public for testing)
 app.post('/test-fcm', async (req, res) => {
   try {
@@ -367,7 +273,7 @@ app.use('/api/complaints', complaintRoutes);
 app.use('/api/work-orders', workOrderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin-approval', adminApprovalRoutes);
-app.use('/api/ml', mlRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

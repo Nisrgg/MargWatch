@@ -7,8 +7,8 @@ export const config = {
   port: process.env.PORT || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
   
-  // Database - Default to Docker PostgreSQL setup
-  databaseUrl: process.env.DATABASE_URL || 'postgresql://margwatch:margwatch123@localhost:5432/margwatch?schema=public',
+  // Database - Using Neon Cloud Database
+  databaseUrl: process.env.DATABASE_URL || (() => { throw new Error('DATABASE_URL environment variable is required'); })(),
   
   // Redis
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
