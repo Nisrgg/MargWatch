@@ -1,0 +1,10 @@
+# MargWatch Mobile App Environment Variables
+# Copy this file to local.properties and update with your actual values
+
+# Google Maps API Key
+# Get your API key from: https://console.cloud.google.com/apis/credentials
+GOOGLE_MAPS_API_KEY=your-google-maps-api-key
+
+# Backend API URL
+# Update this to your backend server URL
+BACKEND_URL=http://192.168.137.1:5000

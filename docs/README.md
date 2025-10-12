@@ -57,7 +57,7 @@ The Android app allows users to:
 ### Test Accounts
 - **User**: user@roadportal.com / user123
 - **Worker**: worker1@roadportal.com / worker123
-- **Admin**: admin@roadportal.com / admin123
+- **Admin**: admin@roadportal.com / [Set via ADMIN_PASSWORD env var]
 
 ## 🔧 Development
 

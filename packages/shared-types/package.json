@@ -1,0 +1,17 @@
+{
+  "name": "@margwatch/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types for MargWatch project",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "keywords": ["margwatch", "types", "shared"],
+  "author": "MargWatch Team",
+  "license": "MIT"
+}

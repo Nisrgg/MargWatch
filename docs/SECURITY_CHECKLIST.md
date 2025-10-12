@@ -1,144 +1,62 @@
-# MargWatch Security Checklist
+# Security Checklist for MargWatch
 
-## 🔐 **SECURITY FILES TO PROTECT**
+## 🔒 Pre-Commit Security Checks
 
-### **Environment Files**
-- `margwatch_project/.env` - Main environment variables
-- `margwatch_project/backend/.env` - Backend-specific environment variables
-- `margwatch_project/ml-service/.env` - ML service environment variables
+Before committing any changes, ensure the following security measures are in place:
 
-### **Firebase Configuration**
-- `margwatch_project/firebase-service-account.json` - Firebase Admin SDK credentials
-- `margwatch_project/backend/firebase-service-account.json` - Backend Firebase credentials
-- `MargWatch/app/google-services.json` - Android Firebase configuration
+### ✅ Environment Variables
+- [ ] No hardcoded API keys, passwords, or secrets in source code
+- [ ] All sensitive values use environment variables
+- [ ] `.env.example` files exist with placeholder values
+- [ ] `.env` files are in `.gitignore`
 
-### **API Keys & Secrets**
-- Google Maps API keys in AndroidManifest.xml
-- Cloudinary credentials
-- JWT secrets
-- Database connection strings
-- Redis connection strings
+### ✅ API Keys & Secrets
+- [ ] Google Maps API key uses environment variable
+- [ ] Database passwords use environment variables
+- [ ] JWT secrets use environment variables
+- [ ] Cloudinary credentials use environment variables
+- [ ] Firebase credentials use environment variables
 
-## 🚫 **FILES ALREADY PROTECTED BY .gitignore**
+### ✅ Default Credentials
+- [ ] No hardcoded admin passwords in seed files
+- [ ] Default passwords documented as environment variables
+- [ ] Test credentials use environment variables
 
-✅ **Environment Files**: `.env`, `.env.local`, `.env.production`
-✅ **Firebase Files**: `firebase-service-account.json`, `google-services.json`
-✅ **Build Artifacts**: `dist/`, `build/`, `node_modules/`
-✅ **Cache Files**: `*.cache`, `*.tmp`, `*.temp`, `*.log`
-✅ **IDE Files**: `.vscode/`, `.idea/`, `*.swp`
-✅ **OS Files**: `.DS_Store`, `Thumbs.db`
-✅ **Backup Files**: `*.backup`, `*.bak`, `*.old`
-✅ **ML Models**: `*.pkl`, `*.joblib`, `*.h5`, `*.pb`
+### ✅ File Security
+- [ ] `local.properties` files use environment variables
+- [ ] Docker Compose files use environment variables
+- [ ] Configuration files don't contain secrets
 
-## 🔍 **SECURITY VERIFICATION COMMANDS**
+## 🚨 Common Security Issues to Avoid
 
-### **Check for Sensitive Files**
+1. **Hardcoded API Keys**: Never commit real API keys
+2. **Database Passwords**: Always use environment variables
+3. **JWT Secrets**: Never use default/weak secrets
+4. **Admin Credentials**: Don't hardcode admin passwords
+5. **Firebase Keys**: Use environment variables for all Firebase config
+
+## 🔍 Security Scan Commands
+
+Run these commands to check for exposed secrets:
+
 ```bash
-# Find environment files
-find . -name "*.env*" -not -path "./node_modules/*" -not -path "./.git/*"
-
-# Find Firebase files
-find . -name "firebase-service-account.json" -o -name "google-services.json"
-
-# Find API keys in code
+# Check for API keys
 grep -r "AIzaSy" . --exclude-dir=node_modules --exclude-dir=.git
 
-# Find hardcoded secrets
-grep -r "password\|secret\|key\|token" . --exclude-dir=node_modules --exclude-dir=.git --exclude="*.md"
+# Check for hardcoded passwords
+grep -r "password.*=" . --exclude-dir=node_modules --exclude-dir=.git
+
+# Check for secrets
+grep -r "secret.*=" . --exclude-dir=node_modules --exclude-dir=.git
+
+# Check for tokens
+grep -r "token.*=" . --exclude-dir=node_modules --exclude-dir=.git
 ```
 
-### **Check Git Status**
-```bash
-# Verify sensitive files are not tracked
-git status --porcelain | grep -E "\.(env|json)$|firebase-service-account|google-services"
+## 📝 Security Best Practices
 
-# Check what files are staged
-git diff --cached --name-only
-```
-
-## 🛡️ **SECURITY BEST PRACTICES**
-
-### **Environment Variables**
-- ✅ Use `.env` files for local development
-- ✅ Use environment variables in production
-- ✅ Never commit `.env` files to version control
-- ✅ Use `.env.example` as template
-
-### **API Keys**
-- ✅ Store API keys in environment variables
-- ✅ Use different keys for development/production
-- ✅ Rotate keys regularly
-- ✅ Monitor API key usage
-
-### **Database Security**
-- ✅ Use strong passwords
-- ✅ Enable SSL connections
-- ✅ Restrict database access by IP
-- ✅ Regular backups
-
-### **Firebase Security**
-- ✅ Use service account files for server-side
-- ✅ Configure Firebase security rules
-- ✅ Monitor Firebase usage
-- ✅ Regular security audits
-
-## 🚨 **SECURITY ALERTS**
-
-### **If You Accidentally Commit Secrets:**
-1. **Immediately rotate the compromised credentials**
-2. **Remove from git history**: `git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch <file>' --prune-empty --tag-name-filter cat -- --all`
-3. **Force push**: `git push origin --force --all`
-4. **Notify team members** to pull the cleaned history
-
-### **Before Each Commit:**
-```bash
-# Run security check
-git status --porcelain | grep -E "\.(env|json)$|firebase-service-account|google-services"
-if [ $? -eq 0 ]; then
-    echo "⚠️  WARNING: Sensitive files detected in staging area!"
-    exit 1
-fi
-```
-
-## 📋 **PRE-COMMIT SECURITY CHECKLIST**
-
-- [ ] No `.env` files in staging area
-- [ ] No `firebase-service-account.json` files
-- [ ] No `google-services.json` files
-- [ ] No hardcoded API keys in code
-- [ ] No hardcoded passwords in code
-- [ ] No sensitive data in logs
-- [ ] All secrets are in environment variables
-- [ ] `.gitignore` is up to date
-
-## 🔧 **DEVELOPMENT SECURITY SETUP**
-
-### **Local Development**
-1. Copy `env.example` to `.env`
-2. Fill in your local development values
-3. Never commit `.env` files
-4. Use test API keys for development
-
-### **Team Collaboration**
-1. Share environment setup via documentation
-2. Use secure channels for sharing secrets
-3. Regular security reviews
-4. Update secrets when team members leave
-
-## 📞 **SECURITY INCIDENT RESPONSE**
-
-### **If Security Breach Suspected:**
-1. **Immediately rotate all credentials**
-2. **Check git history for exposed secrets**
-3. **Notify team members**
-4. **Review access logs**
-5. **Update security measures**
-
-### **Contact Information**
-- **Project Lead**: [Your Name]
-- **Security Contact**: [Security Team Contact]
-- **Emergency**: [Emergency Contact]
-
----
-
-**Remember**: Security is everyone's responsibility. When in doubt, ask before committing sensitive information!
+1. **Environment Variables**: Use `.env` files for all sensitive data
+2. **Git Ignore**: Ensure `.env` files are never committed
+3. **Example Files**: Provide `.env.example` with placeholder values
+4. **Documentation**: Document required environment variables
+5. **Default Values**: Use secure defaults or require explicit configuration
