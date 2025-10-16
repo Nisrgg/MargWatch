@@ -15,7 +15,7 @@ import {
   BellIcon,
   ShieldCheckIcon,
   ServerIcon,
-  DatabaseIcon,
+  CircleStackIcon,
   CloudIcon,
   KeyIcon,
   GlobeAltIcon,

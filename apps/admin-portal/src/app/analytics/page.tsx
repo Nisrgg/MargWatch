@@ -31,7 +31,7 @@ import {
   TrendingDown,
   Calendar,
   Download,
-  RefreshCw,
+  RotateCcw,
   MapPin,
   Clock,
   CheckCircle,
@@ -44,32 +44,36 @@ import toast from 'react-hot-toast';
 interface AnalyticsData {
   complaintsOverTime: Array<{
     date: string;
-    complaints: number;
-    resolved: number;
+    count: number;
   }>;
   complaintsByCategory: Array<{
     category: string;
     count: number;
-    percentage: number;
   }>;
   complaintsByStatus: Array<{
     status: string;
     count: number;
-    percentage: number;
   }>;
   workerPerformance: Array<{
-    workerId: string;
-    workerName: string;
-    completed: number;
-    pending: number;
-    avgTime: number;
+    id: string;
+    name: string;
+    email: string;
+    totalOrders: number;
+    completedOrders: number;
+    completionRate: number;
+    avgCompletionTime: number;
+    totalCost: number;
   }>;
   heatMapData: Array<{
     lat: number;
     lng: number;
-    count: number;
-    severity: 'low' | 'medium' | 'high';
+    category: string;
+    status: string;
   }>;
+  avgResolutionTime: number;
+  period: number;
+  totalComplaints: number;
+  completedComplaints: number;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
@@ -106,6 +110,9 @@ export default function AnalyticsPage() {
           workerPerformance: data.workerPerformance || [],
           heatMapData: data.heatMapData || [],
           avgResolutionTime: data.avgResolutionTime || 0,
+          period: data.period || 30,
+          totalComplaints: data.totalComplaints || 0,
+          completedComplaints: data.completedComplaints || 0,
         });
       }
     } catch (error) {
@@ -154,7 +161,7 @@ export default function AnalyticsPage() {
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={fetchAnalytics}>
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RotateCcw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
             <Button variant="outline" size="sm">
@@ -372,14 +379,14 @@ export default function AnalyticsPage() {
                     </div>
                     <Badge
                       variant={
-                        location.severity === 'high' ? 'destructive' :
-                        location.severity === 'medium' ? 'warning' : 'default'
+                        location.status === 'COMPLETED' ? 'default' :
+                        location.status === 'PROCESSING' ? 'warning' : 'destructive'
                       }
                     >
-                      {location.severity}
+                      {location.status}
                     </Badge>
                   </div>
-                  <p className="text-2xl font-bold">{location.count}</p>
+                  <p className="text-2xl font-bold">{location.category}</p>
                   <p className="text-xs text-muted-foreground">reported issues</p>
                 </div>
               ))}

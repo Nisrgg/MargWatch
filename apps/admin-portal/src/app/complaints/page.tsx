@@ -36,9 +36,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,
-  RefreshCw,
-  Download,
-  Filter,
+  ArrowPathIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import {
   Search,
@@ -47,14 +46,14 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  RefreshCw as RefreshIcon,
+  RotateCcw as RefreshIcon,
   Download as DownloadIcon,
   Calendar,
   MapPin,
   User,
   Image as ImageIcon,
 } from 'lucide-react';
-import { cn, formatDate, formatRelativeTime, formatNumber, getStatusColor, getCategoryColor, formatComplaintStatus, formatCategory, truncateText } from '@/lib/utils';
+import { cn, formatDate, formatRelativeTime, formatNumber, getStatusColor, getCategoryColor, formatComplaintStatus, formatCategory, truncateText, parseImageUrls } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 export default function ComplaintsPage() {
@@ -288,10 +287,10 @@ export default function ComplaintsPage() {
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <div className="flex-shrink-0 h-10 w-10">
-                            {complaint.imageUrls && complaint.imageUrls.length > 0 ? (
+                            {parseImageUrls(complaint.imageUrl).length > 0 ? (
                               <img
                                 className="h-10 w-10 rounded-lg object-cover"
-                                src={complaint.imageUrls[0]}
+                                src={parseImageUrls(complaint.imageUrl)[0]}
                                 alt="Complaint"
                               />
                             ) : (
@@ -472,11 +471,11 @@ export default function ComplaintsPage() {
                 </div>
 
                 {/* Images */}
-                {selectedComplaint.imageUrls && selectedComplaint.imageUrls.length > 0 && (
+                {parseImageUrls(selectedComplaint.imageUrl).length > 0 && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Images</label>
                     <div className="grid grid-cols-2 gap-4">
-                      {selectedComplaint.imageUrls.map((url, index) => (
+                      {parseImageUrls(selectedComplaint.imageUrl).map((url, index) => (
                         <img
                           key={index}
                           src={url}

@@ -18,10 +18,9 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ExclamationTriangleIcon,
-  TrendingUpIcon,
-  TrendingDownIcon,
-  ArrowUpRightIcon,
-  ArrowDownRightIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 import {
   FileText,
@@ -216,7 +215,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-semibold text-gray-700">Administrators</span>
                   </div>
                   <span className="text-3xl font-bold gradient-text">
-                    {formatNumber(stats?.users.admins || 0)}
+                    {formatNumber(stats?.users.total || 0)}
                   </span>
                 </div>
               </div>

@@ -61,7 +61,7 @@ export default function ApprovalsPage() {
       }
     } catch (error) {
       console.error('Failed to fetch pending approvals:', error);
-      notifyError('Failed to load pending approvals');
+      notifyError('Error', 'Failed to load pending approvals');
     } finally {
       setIsLoading(false);
     }
@@ -82,18 +82,18 @@ export default function ApprovalsPage() {
       const response = await apiClient.approveWorkOrder(approvalData);
       
       if (response.success) {
-        notifySuccess(`Work order ${approvalAction.toLowerCase()}ed successfully`);
+        notifySuccess('Success', `Work order ${approvalAction.toLowerCase()}ed successfully`);
         setIsDialogOpen(false);
         setSelectedWorkOrder(null);
         setApprovalAction(null);
         setRejectionReason('');
         fetchPendingApprovals(); // Refresh the list
       } else {
-        notifyError(response.message || 'Failed to process approval');
+        notifyError('Error', response.message || 'Failed to process approval');
       }
     } catch (error) {
       console.error('Failed to approve work order:', error);
-      notifyError('Failed to process approval');
+      notifyError('Error', 'Failed to process approval');
     } finally {
       setIsApproving(false);
     }

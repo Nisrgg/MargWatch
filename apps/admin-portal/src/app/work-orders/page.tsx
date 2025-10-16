@@ -34,9 +34,9 @@ import {
   PlusIcon,
   EyeIcon,
   UserPlusIcon,
-  RefreshCw,
-  Download,
-  Filter,
+  ArrowPathIcon,
+  ArrowDownTrayIcon,
+  FunnelIcon,
 } from '@heroicons/react/24/outline';
 import {
   Search,
@@ -44,7 +44,7 @@ import {
   Plus,
   Eye,
   UserPlus,
-  RefreshCw as RefreshIcon,
+  RotateCcw as RefreshIcon,
   Download as DownloadIcon,
   Calendar,
   User as UserIcon,
@@ -57,7 +57,7 @@ import {
   TrendingUp,
   BarChart3,
 } from 'lucide-react';
-import { cn, formatDate, formatRelativeTime, formatNumber, getStatusColor, getPriorityColor, formatWorkOrderStatus, formatPriority, truncateText } from '@/lib/utils';
+import { cn, formatDate, formatRelativeTime, formatNumber, getStatusColor, getPriorityColor, formatWorkOrderStatus, formatPriority, truncateText, parseImageUrls } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 export default function WorkOrdersPage() {
@@ -141,7 +141,7 @@ export default function WorkOrdersPage() {
 
     try {
       const response = await apiClient.createWorkOrder(createForm);
-      if (response.success) {
+      if (response.success && response.data) {
         const worker = availableWorkers.find(w => w.id === createForm.workerId);
         const workerName = worker ? `${worker.firstName} ${worker.lastName}` : 'Unknown Worker';
         
@@ -364,10 +364,10 @@ export default function WorkOrdersPage() {
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <div className="flex-shrink-0 h-10 w-10">
-                            {workOrder.complaint.imageUrls && workOrder.complaint.imageUrls.length > 0 ? (
+                            {parseImageUrls(workOrder.complaint.imageUrl).length > 0 ? (
                               <img
                                 className="h-10 w-10 rounded-lg object-cover"
-                                src={workOrder.complaint.imageUrls[0]}
+                                src={parseImageUrls(workOrder.complaint.imageUrl)[0]}
                                 alt="Complaint"
                               />
                             ) : (
