@@ -52,7 +52,6 @@ import com.margwatch.data.local.OfflineComplaintManager
 import com.margwatch.data.model.OfflineComplaint
 import com.margwatch.ui.components.NetworkStatusIndicator
 import com.margwatch.ui.components.GradientButton
-import com.margwatch.utils.SimpleNotificationManager
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -94,6 +93,17 @@ fun ComplaintSubmissionScreen(
     LaunchedEffect(Unit) {
         tokenManager.getToken().collect { token ->
             authToken = token
+        }
+    }
+
+    // Handle submission success - FCM will handle notifications
+    LaunchedEffect(uiState.submissionSuccess) {
+        if (uiState.submissionSuccess) {
+            // FCM notifications will be sent by the backend
+            // No local notification needed to avoid duplicates
+            android.util.Log.d("ComplaintSubmission", "Complaint submitted successfully - FCM notification will be sent")
+            // Reset the success state to avoid duplicate processing
+            complaintViewModel.submissionSuccessHandled()
         }
     }
 
@@ -612,6 +622,9 @@ fun ComplaintSubmissionScreen(
                                     file
                                 }
                                 
+                                android.util.Log.d("ComplaintSubmission", "Starting complaint submission...")
+                                android.util.Log.d("ComplaintSubmission", "Images: ${imageFiles.size}, Location: $currentLatitude, $currentLongitude")
+                                
                                 complaintViewModel.submitComplaint(
                                     authToken!!,
                                     imageFiles,
@@ -620,12 +633,9 @@ fun ComplaintSubmissionScreen(
                                     currentAddress
                                 )
                                 
-                                // Show notification for successful submission
-                                SimpleNotificationManager.showComplaintNotification(
-                                    context,
-                                    "Complaint Submitted",
-                                    "Your complaint has been successfully submitted! 🎉"
-                                )
+                                android.util.Log.d("ComplaintSubmission", "Complaint submission initiated, waiting for result...")
+                                // Wait for submission result before showing notification
+                                // The notification will be handled by observing the ViewModel state
                             } else {
                                 // Offline submission - save locally
                                 android.util.Log.d("ComplaintSubmission", "Saving complaint offline...")
@@ -681,12 +691,9 @@ fun ComplaintSubmissionScreen(
                                         val complaintId = offlineManager.saveOfflineComplaint(offlineComplaint)
                                         android.util.Log.d("ComplaintSubmission", "Saved offline complaint: $complaintId")
                                         
-                                        // Show notification for offline save
-                                        SimpleNotificationManager.showComplaintNotification(
-                                            context,
-                                            "Complaint Saved Offline",
-                                            "Your complaint has been saved offline and will be uploaded when you're back online! 📱"
-                                        )
+                                        // Offline complaint saved - no notification needed
+                                        // FCM notification will be sent when complaint is uploaded online
+                                        android.util.Log.d("ComplaintSubmission", "Offline complaint saved - will notify when uploaded online")
                                     } catch (e: Exception) {
                                         android.util.Log.e("ComplaintSubmission", "Failed to save offline complaint", e)
                                         Toast.makeText(

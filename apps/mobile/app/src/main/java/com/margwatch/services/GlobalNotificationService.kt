@@ -38,8 +38,8 @@ class GlobalNotificationService private constructor() {
                     token = token,
                     onNotificationReceived = { title, message, type ->
                         android.util.Log.d("GlobalWS", "Global notification received: $title")
-                        // Show notification immediately
-                        wsService?.showNotification(title, message)
+                        // FCM handles notifications - no local notification needed
+                        android.util.Log.d("GlobalWS", "Notification processed by FCM: $title")
                     }
                 )
                 android.util.Log.d("GlobalWS", "Connecting WebSocket...")

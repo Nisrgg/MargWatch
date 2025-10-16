@@ -131,7 +131,15 @@ export class ComplaintController {
         },
       });
 
-      // Create notification for admins about new complaint
+      // Prepare response data
+      const responseData = {
+        complaint: {
+          ...complaint,
+          imageUrls: JSON.parse(complaint.imageUrl || '[]'), // Parse JSON for response
+        }
+      };
+
+      // Send notifications BEFORE sending response to ensure proper timing
       try {
         // Notify the user who submitted
         await FirebaseNotificationService.getInstance().createAndSendNotification(
@@ -169,18 +177,14 @@ export class ComplaintController {
         }
       } catch (notificationError) {
         console.error('Failed to create notifications:', notificationError);
-        // Don't fail the complaint submission if notifications fail
+        // Continue with response even if notifications fail
       }
 
+      // Send response after notifications are sent
       const response: ApiResponse = {
         success: true,
         message: 'Complaint submitted successfully',
-        data: { 
-          complaint: {
-            ...complaint,
-            imageUrls: JSON.parse(complaint.imageUrl || '[]'), // Parse JSON for response
-          }
-        },
+        data: responseData,
       };
 
       res.status(201).json(response);

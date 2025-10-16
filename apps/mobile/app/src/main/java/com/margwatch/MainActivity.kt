@@ -17,7 +17,6 @@ import androidx.navigation.compose.rememberNavController
 import com.margwatch.data.local.TokenManager
 import com.margwatch.ui.screens.*
 import com.margwatch.ui.theme.MargWatchTheme
-import com.margwatch.utils.SimpleNotificationManager
 import com.margwatch.services.GlobalNotificationService
 import com.google.firebase.FirebaseApp
 
@@ -26,9 +25,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // Create notification channels
-        SimpleNotificationManager.createNotificationChannel(this)
-        
+        // FCM notification channels are created automatically by FirebaseNotificationService
         FirebaseApp.initializeApp(this)
         setContent {
             MargWatchTheme {

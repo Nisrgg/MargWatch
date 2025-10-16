@@ -105,10 +105,7 @@ class NotificationSSEService(
                                                         notificationData.message,
                                                         notificationData.type
                                                     )
-                                                    showLocalNotification(
-                                                        notificationData.title,
-                                                        notificationData.message
-                                                    )
+                                                    // Local notification removed - FCM handles notifications
                                                 }
                                             }
                                         } catch (e: Exception) {
@@ -196,33 +193,9 @@ class NotificationSSEService(
         return pattern.find(json)?.groupValues?.get(1)
     }
 
-    private fun showLocalNotification(title: String, message: String) {
-        try {
-            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setAutoCancel(true)
-                .build()
-
-            with(NotificationManagerCompat.from(context)) {
-                if (areNotificationsEnabled()) {
-                    notify(NOTIFICATION_ID, notification)
-                } else {
-                    android.util.Log.w("Notification", "Notifications are disabled")
-                }
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("Notification", "Failed to show notification: ${e.message}")
-        }
-    }
-
     fun isConnected(): Boolean = isConnected
 
-    fun showNotification(title: String, message: String) {
-        showLocalNotification(title, message)
-    }
+    // Local notification methods removed - FCM handles all notifications
 }
 
 data class NotificationData(

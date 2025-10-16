@@ -27,7 +27,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.margwatch.data.model.User
 import com.margwatch.data.model.UserRole
 import com.margwatch.ui.theme.MargWatchTheme
-import com.margwatch.utils.SimpleNotificationManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*

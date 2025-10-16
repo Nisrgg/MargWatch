@@ -27,7 +27,7 @@ class WebSocketNotificationService(
     companion object {
         private const val CHANNEL_ID = "margwatch_notifications"
         private const val NOTIFICATION_ID = 1
-        private const val WS_URL = "ws://${NetworkConfig.CURRENT_WIFI_IP}:5000/ws/notifications"
+        private const val WS_URL = NetworkConfig.WS_BASE_URL
     }
 
     init {
@@ -94,7 +94,7 @@ class WebSocketNotificationService(
                             
                             android.util.Log.d("WebSocket", "📱 Processing notification: $title")
                             onNotificationReceived(title, message, notificationType)
-                            showNotification(title, message)
+                            // Local notification removed - FCM handles notifications
                         }
                         else -> {
                             android.util.Log.d("WebSocket", "📨 Unknown message type: $type")
@@ -118,6 +118,7 @@ class WebSocketNotificationService(
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 android.util.Log.e("WebSocket", "❌ WebSocket failed: ${t.message}", t)
+                android.util.Log.e("WebSocket", "Response: ${response?.code} - ${response?.message}")
                 isConnected = false
                 scheduleReconnect()
             }
@@ -143,32 +144,5 @@ class WebSocketNotificationService(
 
     fun isConnected(): Boolean = isConnected
 
-    @SuppressLint("MissingPermission")
-    fun showNotification(title: String, message: String) {
-        if (!areNotificationsEnabled()) {
-            android.util.Log.w("WebSocket", "Notifications not enabled")
-            return
-        }
-
-        try {
-            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setAutoCancel(true)
-                .build()
-
-            val notificationManager = NotificationManagerCompat.from(context)
-            notificationManager.notify(NOTIFICATION_ID, notification)
-            
-            android.util.Log.d("WebSocket", "📱 Notification shown: $title")
-        } catch (e: Exception) {
-            android.util.Log.e("WebSocket", "Failed to show notification", e)
-        }
-    }
-
-    private fun areNotificationsEnabled(): Boolean {
-        return NotificationManagerCompat.from(context).areNotificationsEnabled()
-    }
+    // Local notification methods removed - FCM handles all notifications
 }

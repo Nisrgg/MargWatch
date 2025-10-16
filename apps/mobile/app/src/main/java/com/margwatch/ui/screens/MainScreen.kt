@@ -34,7 +34,6 @@ import com.margwatch.ui.components.*
 import com.margwatch.ui.theme.MargWatchTheme
 import com.margwatch.ui.theme.GradientStart
 import com.margwatch.ui.theme.GradientEnd
-import com.margwatch.utils.SimpleNotificationManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -393,13 +392,7 @@ fun MainScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        GradientButton(
-                            text = "Test Notifications 🔔",
-                onClick = {
-                    SimpleNotificationManager.showTestNotification(context)
-                },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // Test notification button removed - using FCM notifications only
                     }
                 }
             }
