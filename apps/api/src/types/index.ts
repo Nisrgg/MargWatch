@@ -36,6 +36,12 @@ export interface WorkOrderRequest {
   priority?: number;
 }
 
+export interface WorkOrderApprovalRequest {
+  workOrderId: string;
+  approvalStatus: 'APPROVED' | 'REJECTED';
+  rejectionReason?: string;
+}
+
 export interface UpdateComplaintStatusRequest {
   status: ComplaintStatus;
   description?: string;

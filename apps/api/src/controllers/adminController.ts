@@ -285,16 +285,20 @@ export class AdminController {
    */
   static async getComplaintAnalytics(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
+      console.log('Getting complaint analytics...');
       const { period = '30' } = req.query as any;
       const days = parseInt(period);
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
+      console.log('Analytics period:', days, 'days, start date:', startDate);
+
+      // Get basic analytics using Prisma queries (SQLite compatible)
       const [
         complaintsByCategory,
         complaintsByStatus,
-        complaintsByDay,
-        avgResolutionTime,
+        totalComplaints,
+        completedComplaints,
       ] = await Promise.all([
         prisma.complaint.groupBy({
           by: ['category'],
@@ -310,32 +314,181 @@ export class AdminController {
             createdAt: { gte: startDate },
           },
         }),
-        prisma.$queryRaw`
-          SELECT 
-            DATE(created_at) as date,
-            COUNT(*) as count
-          FROM complaints 
-          WHERE created_at >= ${startDate}
-          GROUP BY DATE(created_at)
-          ORDER BY date ASC
-        `,
-        prisma.$queryRaw`
-          SELECT 
-            AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/86400) as avg_days
-          FROM complaints 
-          WHERE status = 'COMPLETED' 
-          AND created_at >= ${startDate}
-        `,
+        prisma.complaint.count({
+          where: {
+            createdAt: { gte: startDate },
+          },
+        }),
+        prisma.complaint.count({
+          where: {
+            createdAt: { gte: startDate },
+            status: 'COMPLETED',
+          },
+        }),
       ]);
 
+      console.log('Basic analytics retrieved:', {
+        totalComplaints,
+        completedComplaints,
+        categories: complaintsByCategory.length,
+        statuses: complaintsByStatus.length,
+      });
+
+      // Calculate average resolution time using Prisma (SQLite compatible)
+      let avgResolutionTime = 0;
+      try {
+        const completedComplaintsWithTimes = await prisma.complaint.findMany({
+          where: {
+            createdAt: { gte: startDate },
+            status: 'COMPLETED',
+          },
+          select: {
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        if (completedComplaintsWithTimes.length > 0) {
+          const totalDays = completedComplaintsWithTimes.reduce((sum, complaint) => {
+            const diffTime = complaint.updatedAt.getTime() - complaint.createdAt.getTime();
+            const diffDays = diffTime / (1000 * 60 * 60 * 24);
+            return sum + diffDays;
+          }, 0);
+          avgResolutionTime = totalDays / completedComplaintsWithTimes.length;
+        }
+      } catch (timeError) {
+        console.error('Error calculating resolution time:', timeError);
+        avgResolutionTime = 0;
+      }
+
+      // Generate daily data using Prisma (SQLite compatible)
+      const complaintsByDay: { date: string; count: number }[] = [];
+      try {
+        const allComplaints = await prisma.complaint.findMany({
+          where: {
+            createdAt: { gte: startDate },
+          },
+          select: {
+            createdAt: true,
+          },
+        });
+
+        // Group by date
+        const dailyCounts: { [key: string]: number } = {};
+        allComplaints.forEach(complaint => {
+          const date = complaint.createdAt.toISOString().split('T')[0];
+          dailyCounts[date] = (dailyCounts[date] || 0) + 1;
+        });
+
+        // Convert to array format
+        Object.entries(dailyCounts).forEach(([date, count]) => {
+          complaintsByDay.push({ date, count });
+        });
+
+        // Sort by date
+        complaintsByDay.sort((a, b) => a.date.localeCompare(b.date));
+      } catch (dayError) {
+        console.error('Error generating daily data:', dayError);
+      }
+
+      // Get worker performance data
+      const workers = await prisma.user.findMany({
+        where: {
+          role: 'WORKER',
+          isActive: true,
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          workOrders: {
+            where: {
+              assignedAt: { gte: startDate },
+            },
+            select: {
+              id: true,
+              status: true,
+              assignedAt: true,
+              completedAt: true,
+              cost: true,
+            },
+          },
+        },
+      });
+
+      const workerPerformance = workers.map(worker => {
+        const totalOrders = worker.workOrders.length;
+        const completedOrders = worker.workOrders.filter(wo => wo.status === 'COMPLETED').length;
+        const totalCost = worker.workOrders.reduce((sum, wo) => sum + (wo.cost || 0), 0);
+        const avgCompletionTime = completedOrders > 0 
+          ? worker.workOrders
+              .filter(wo => wo.completedAt)
+              .reduce((sum, wo) => {
+                const completionTime = wo.completedAt!.getTime() - wo.assignedAt.getTime();
+                return sum + completionTime;
+              }, 0) / completedOrders / (1000 * 60 * 60 * 24) // Convert to days
+          : 0;
+
+        return {
+          id: worker.id,
+          name: `${worker.firstName} ${worker.lastName}`,
+          email: worker.email,
+          totalOrders,
+          completedOrders,
+          completionRate: totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0,
+          avgCompletionTime: Math.round(avgCompletionTime * 100) / 100,
+          totalCost: Math.round(totalCost * 100) / 100,
+        };
+      });
+
+      // Get heat map data (simplified for now)
+      const heatMapData = await prisma.complaint.findMany({
+        where: {
+          createdAt: { gte: startDate },
+        },
+        select: {
+          latitude: true,
+          longitude: true,
+          category: true,
+          status: true,
+        },
+      });
+
       const analytics = {
-        complaintsByCategory,
-        complaintsByStatus,
-        complaintsByDay,
-        avgResolutionTime: (avgResolutionTime as any)[0]?.avg_days || 0,
+        complaintsOverTime: complaintsByDay.map(day => ({
+          date: day.date,
+          count: day.count,
+        })),
+        complaintsByCategory: complaintsByCategory.map(cat => ({
+          category: cat.category,
+          count: cat._count.category,
+        })),
+        complaintsByStatus: complaintsByStatus.map(status => ({
+          status: status.status,
+          count: status._count.status,
+        })),
+        workerPerformance,
+        heatMapData: heatMapData.map(item => ({
+          lat: item.latitude,
+          lng: item.longitude,
+          category: item.category,
+          status: item.status,
+        })),
+        avgResolutionTime: Math.round(avgResolutionTime * 100) / 100,
         period: days,
+        totalComplaints,
+        completedComplaints,
       };
 
+      console.log('Analytics generated successfully:', {
+        categories: analytics.complaintsByCategory.length,
+        statuses: analytics.complaintsByStatus.length,
+        dailyData: analytics.complaintsOverTime.length,
+        workers: analytics.workerPerformance.length,
+        heatMapPoints: analytics.heatMapData.length,
+        avgResolutionTime: analytics.avgResolutionTime,
+      });
       const response: ApiResponse = {
         success: true,
         message: 'Complaint analytics retrieved successfully',

@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient, UserRole, IssueCategory, ComplaintStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -90,6 +90,60 @@ async function main() {
   });
 
   console.log('✅ System settings created');
+
+  // Create sample complaints
+  const complaints = [];
+  const categories = [IssueCategory.POTHOLE, IssueCategory.ROAD_INSTABILITY, IssueCategory.STREETLIGHT_DAMAGE, IssueCategory.TREE_DAMAGE, IssueCategory.OTHER];
+  const statuses = [ComplaintStatus.REGISTERED, ComplaintStatus.APPROVED, ComplaintStatus.PROCESSING, ComplaintStatus.COMPLETED, ComplaintStatus.REJECTED];
+  
+  for (let i = 0; i < 15; i++) {
+    const createdAt = new Date();
+    createdAt.setDate(createdAt.getDate() - Math.floor(Math.random() * 30)); // Random date within last 30 days
+    
+    const complaint = await prisma.complaint.create({
+      data: {
+        title: `Sample Complaint ${i + 1}`,
+        description: `This is a sample complaint description for testing purposes. Issue ${i + 1} needs attention.`,
+        category: categories[Math.floor(Math.random() * categories.length)],
+        status: statuses[Math.floor(Math.random() * statuses.length)],
+        latitude: 28.6139 + (Math.random() - 0.5) * 0.1, // Around Delhi area
+        longitude: 77.2090 + (Math.random() - 0.5) * 0.1,
+        address: `Sample Address ${i + 1}, Delhi`,
+        userId: user.id,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    });
+    complaints.push(complaint);
+  }
+
+  console.log('✅ Sample complaints created:', complaints.length);
+
+  // Create sample work orders
+  const workOrders = [];
+  for (let i = 0; i < 8; i++) {
+    const complaint = complaints[Math.floor(Math.random() * complaints.length)];
+    const worker = Math.random() > 0.5 ? worker1 : worker2;
+    
+    const assignedAt = new Date();
+    assignedAt.setDate(assignedAt.getDate() - Math.floor(Math.random() * 20));
+    
+    const workOrder = await prisma.workOrder.create({
+      data: {
+        complaintId: complaint.id,
+        workerId: worker.id,
+        priority: Math.floor(Math.random() * 3) + 1, // 1, 2, or 3
+        status: [ComplaintStatus.APPROVED, ComplaintStatus.PROCESSING, ComplaintStatus.COMPLETED][Math.floor(Math.random() * 3)],
+        cost: Math.floor(Math.random() * 5000) + 500,
+        assignedAt,
+        completedAt: Math.random() > 0.6 ? new Date(assignedAt.getTime() + Math.random() * 7 * 24 * 60 * 60 * 1000) : null,
+        workDescription: `Work order for ${complaint.title}`,
+      },
+    });
+    workOrders.push(workOrder);
+  }
+
+  console.log('✅ Sample work orders created:', workOrders.length);
 
   console.log('🎉 Database seed completed successfully!');
   console.log('\n📋 Test Accounts:');

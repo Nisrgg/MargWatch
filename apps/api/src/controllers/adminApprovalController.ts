@@ -382,12 +382,13 @@ export class AdminApprovalController {
       let updatedComplaint;
 
       if (action === 'approve') {
-        // Update work order status to completed (final approval)
+        // Update work order admin approval status
         updatedWorkOrder = await prisma.workOrder.update({
           where: { id: workOrderId },
           data: {
-            status: ComplaintStatus.COMPLETED,
-            completedAt: new Date(),
+            adminApprovalStatus: 'APPROVED',
+            adminApprovedBy: adminId,
+            adminApprovedAt: new Date(),
           },
         });
 
@@ -410,37 +411,48 @@ export class AdminApprovalController {
         });
 
         // Create notification for user
-        await FirebaseNotificationService.getInstance().createAndSendNotification(
-          workOrder.complaint.userId,
-          'Complaint Resolved',
-          `Your complaint "${workOrder.complaint.title}" has been successfully resolved!`,
-          'complaint_resolved',
-          {
-            workOrderId: workOrderId,
-            complaintId: workOrder.complaintId,
-            status: 'COMPLETED'
-          }
-        );
+        try {
+          await FirebaseNotificationService.getInstance().createAndSendNotification(
+            workOrder.complaint.userId,
+            'Complaint Resolved',
+            `Your complaint "${workOrder.complaint.title}" has been successfully resolved!`,
+            'complaint_resolved',
+            {
+              workOrderId: workOrderId,
+              complaintId: workOrder.complaintId,
+              status: 'COMPLETED'
+            }
+          );
+        } catch (notificationError) {
+          console.error('Failed to send notification to user:', notificationError);
+        }
 
         // Create notification for worker
-        await FirebaseNotificationService.getInstance().createAndSendNotification(
-          workOrder.workerId,
-          'Work Approved',
-          `Your work on "${workOrder.complaint.title}" has been approved by admin`,
-          'work_approved',
-          {
-            workOrderId: workOrderId,
-            complaintId: workOrder.complaintId,
-            status: 'COMPLETED'
-          }
-        );
+        try {
+          await FirebaseNotificationService.getInstance().createAndSendNotification(
+            workOrder.workerId,
+            'Work Approved',
+            `Your work on "${workOrder.complaint.title}" has been approved by admin`,
+            'work_approved',
+            {
+              workOrderId: workOrderId,
+              complaintId: workOrder.complaintId,
+              status: 'COMPLETED'
+            }
+          );
+        } catch (notificationError) {
+          console.error('Failed to send notification to worker:', notificationError);
+        }
 
       } else if (action === 'reject') {
-        // Update work order status back to processing (rejection)
+        // Update work order admin approval status
         updatedWorkOrder = await prisma.workOrder.update({
           where: { id: workOrderId },
           data: {
-            status: ComplaintStatus.PROCESSING,
+            adminApprovalStatus: 'REJECTED',
+            adminApprovedBy: adminId,
+            adminApprovedAt: new Date(),
+            adminRejectionReason: adminNotes,
           },
         });
 
@@ -463,17 +475,21 @@ export class AdminApprovalController {
         });
 
         // Create notification for worker
-        await FirebaseNotificationService.getInstance().createAndSendNotification(
-          workOrder.workerId,
-          'Work Needs Revision',
-          `Your work on "${workOrder.complaint.title}" needs revision. Admin notes: ${adminNotes || 'Please check and resubmit'}`,
-          'work_revision',
-          {
-            workOrderId: workOrderId,
-            complaintId: workOrder.complaintId,
-            status: 'PROCESSING'
-          }
-        );
+        try {
+          await FirebaseNotificationService.getInstance().createAndSendNotification(
+            workOrder.workerId,
+            'Work Needs Revision',
+            `Your work on "${workOrder.complaint.title}" needs revision. Admin notes: ${adminNotes || 'Please check and resubmit'}`,
+            'work_revision',
+            {
+              workOrderId: workOrderId,
+              complaintId: workOrder.complaintId,
+              status: 'PROCESSING'
+            }
+          );
+        } catch (notificationError) {
+          console.error('Failed to send notification to worker:', notificationError);
+        }
       } else {
         res.status(400).json({
           success: false,

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { WorkOrderController, createWorkOrderValidation, updateWorkOrderValidation, completeWorkOrderValidation, updateWorkStatusValidation, completeWorkValidation } from '../controllers/workOrderController';
+import { WorkOrderController, createWorkOrderValidation, updateWorkOrderValidation, completeWorkOrderValidation, updateWorkStatusValidation, completeWorkValidation, approveWorkOrderValidation } from '../controllers/workOrderController';
 import { authenticateToken, requireAdmin, requireWorker } from '../middleware/auth';
 import { handleValidationErrors } from '../middleware/errorHandler';
 import { uploadSingleImage, uploadSingleToCloudinary } from '../middleware/upload';
@@ -12,6 +12,8 @@ router.use(authenticateToken);
 // Admin routes
 router.post('/', requireAdmin, createWorkOrderValidation, handleValidationErrors, WorkOrderController.createWorkOrder);
 router.get('/all', requireAdmin, WorkOrderController.getAllWorkOrders);
+router.get('/pending-approvals', requireAdmin, WorkOrderController.getPendingApprovals);
+router.post('/approve', requireAdmin, approveWorkOrderValidation, handleValidationErrors, WorkOrderController.approveWorkOrder);
 
 // Worker routes
 router.get('/my-orders', requireWorker, WorkOrderController.getWorkerOrders);

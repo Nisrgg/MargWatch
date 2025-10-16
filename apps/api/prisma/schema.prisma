@@ -106,6 +106,12 @@ model WorkOrder {
   materialsUsed   String?
   cost            Float?
   
+  // Admin approval fields
+  adminApprovalStatus String? // 'PENDING', 'APPROVED', 'REJECTED'
+  adminApprovedBy     String? // Admin user ID who approved/rejected
+  adminApprovedAt     DateTime?
+  adminRejectionReason String? // Reason for rejection if rejected
+  
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
