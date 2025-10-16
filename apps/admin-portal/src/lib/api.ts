@@ -168,14 +168,15 @@ class ApiClient {
 
   // Work Order Approval Methods
   async getPendingApprovals(): Promise<ApiResponse<{ workOrders: WorkOrder[] }>> {
-    const response: AxiosResponse<ApiResponse<{ workOrders: WorkOrder[] }>> = await this.client.get('/work-orders/all?status=COMPLETED&adminApprovalStatus=PENDING');
+    const response: AxiosResponse<ApiResponse<{ workOrders: WorkOrder[] }>> = await this.client.get('/work-orders/pending-approvals');
     return response.data;
   }
 
   async approveWorkOrder(approvalData: WorkOrderApprovalForm): Promise<ApiResponse<{ workOrder: WorkOrder }>> {
-    const response: AxiosResponse<ApiResponse<{ workOrder: WorkOrder }>> = await this.client.put(`/admin-approval/work-orders/${approvalData.workOrderId}/final-approve`, {
-      action: approvalData.approvalStatus === 'APPROVED' ? 'approve' : 'reject',
-      adminNotes: approvalData.rejectionReason
+    const response: AxiosResponse<ApiResponse<{ workOrder: WorkOrder }>> = await this.client.post('/work-orders/approve', {
+      workOrderId: approvalData.workOrderId,
+      approvalStatus: approvalData.approvalStatus,
+      rejectionReason: approvalData.rejectionReason
     });
     return response.data;
   }

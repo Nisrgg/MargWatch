@@ -32,8 +32,8 @@ export interface Complaint {
   latitude: number;
   longitude: number;
   address?: string;
-  imageUrls: string[];
-  imageCount: number;
+  imageUrl?: string; // JSON string of image URLs
+  imageCount?: number;
   mlCategory?: string;
   mlConfidence?: number;
   mlModelVersion?: string;
@@ -65,6 +65,7 @@ export interface WorkOrder {
     longitude: number;
     address?: string;
     category: string;
+    imageUrl?: string;
     user: {
       firstName: string;
       lastName: string;
@@ -78,7 +79,7 @@ export interface WorkOrder {
     lastName: string;
     email: string;
   };
-  status: 'REGISTERED' | 'APPROVED' | 'PROCESSING' | 'COMPLETED' | 'REJECTED';
+  status: 'APPROVED' | 'PROCESSING' | 'COMPLETED';
   priority: number;
   assignedAt: string;
   startedAt?: string;
@@ -201,6 +202,7 @@ export interface ComplaintFilters {
   category?: string;
   userId?: string;
   workerId?: string;
+  search?: string;
 }
 
 export interface UserFilters {
@@ -208,6 +210,7 @@ export interface UserFilters {
   limit?: number;
   role?: string;
   search?: string;
+  status?: string;
 }
 
 export interface WorkOrderFilters {
@@ -215,6 +218,7 @@ export interface WorkOrderFilters {
   limit?: number;
   status?: string;
   workerId?: string;
+  search?: string;
 }
 
 // Form Types

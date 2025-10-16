@@ -106,12 +106,12 @@ export default function Layout({ children }: LayoutProps) {
                   <div className="flex items-center space-x-3 cursor-pointer hover:bg-white/10 rounded-xl px-3 py-2 transition-all duration-200">
                     <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-glow">
                       <span className="text-sm font-bold text-white">
-                        {isHydrated ? authUtils.getUserInitials(user) : 'A'}
+                        {isHydrated ? authUtils.getUserInitials(user || undefined) : 'A'}
                       </span>
                     </div>
                     <div className="text-left">
                       <span className="text-sm font-semibold text-gray-800">
-                        {isHydrated ? authUtils.getUserDisplayName(user) : 'Admin'}
+                        {isHydrated ? authUtils.getUserDisplayName(user || undefined) : 'Admin'}
                       </span>
                       <p className="text-xs text-gray-500">Administrator</p>
                     </div>
@@ -188,12 +188,12 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex items-center">
               <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-glow">
                 <span className="text-sm font-bold text-white">
-                  {isHydrated ? authUtils.getUserInitials(user) : 'A'}
+                  {isHydrated ? authUtils.getUserInitials(user || undefined) : 'A'}
                 </span>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-semibold text-gray-800">
-                  {isHydrated ? authUtils.getUserDisplayName(user) : 'Admin'}
+                  {isHydrated ? authUtils.getUserDisplayName(user || undefined) : 'Admin'}
                 </p>
                 <p className="text-xs font-medium text-gray-500">
                   Administrator
