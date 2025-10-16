@@ -25,6 +25,9 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+# Copy healthcheck script to dist
+COPY healthcheck.js dist/
+
 # Expose port
 EXPOSE 5000
 

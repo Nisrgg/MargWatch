@@ -54,6 +54,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
       JWT_EXPIRES_IN: 24h
       CORS_ORIGIN: http://localhost:3000,http://localhost:8080
+      ML_SERVICE_URL: http://ml-service:8000
+      ML_MODEL_URL: http://ml-service:8000/predict
     ports:
       - "5000:5000"
     volumes:
@@ -65,10 +67,11 @@ services:
       - margwatch-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "node", "dist/healthcheck.js"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   # ML Service
   ml-service:
@@ -108,10 +111,8 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      api:
-        condition: service_healthy
-      ml-service:
-        condition: service_healthy
+      - api
+      - ml-service
     networks:
       - margwatch-network
     restart: unless-stopped
