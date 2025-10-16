@@ -11,7 +11,7 @@ export class MLService {
 
   private constructor() {
     this.modelUrl = config.mlModelUrl;
-    this.healthUrl = this.modelUrl.replace('/predict', '/health');
+    this.healthUrl = config.mlServiceUrl + '/health';
   }
 
   public static getInstance(): MLService {

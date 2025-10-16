@@ -241,9 +241,12 @@ app.get('/health', async (req, res) => {
     try {
       const mlHealth = await mlService.healthCheck();
       mlStatus = mlHealth.healthy ? 'healthy' : 'unhealthy';
-      console.log('ML service status:', mlStatus);
+      console.log(`ML service status: ${mlStatus}`);
+      if (mlHealth.status) {
+        console.log('ML service details:', JSON.stringify(mlHealth.status, null, 2));
+      }
     } catch (mlError) {
-      console.warn('ML service health check failed:', mlError);
+      console.warn('ML service health check failed:', mlError instanceof Error ? mlError.message : String(mlError));
       mlStatus = 'unavailable';
     }
     

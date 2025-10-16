@@ -1,14 +1,33 @@
 import app, { WebSocketService } from './app';
 import { config } from './config';
+import { networkInterfaces } from 'os';
 
 const PORT = config.port;
 
+// Utility function to get local network IP
+function getLocalNetworkIP(): string {
+  const interfaces = networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    const iface = interfaces[name];
+    if (iface) {
+      for (const alias of iface) {
+        if (alias.family === 'IPv4' && !alias.internal) {
+          return alias.address;
+        }
+      }
+    }
+  }
+  return 'localhost';
+}
+
 const server = app.listen(Number(PORT), '0.0.0.0', () => {
+  const localIP = getLocalNetworkIP();
+  
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Environment: ${config.nodeEnv}`);
   console.log(`🌐 API URL: http://localhost:${PORT}`);
   console.log(`📋 Health Check: http://localhost:${PORT}/health`);
-  console.log(`📱 Mobile Access: http://172.25.245.0:${PORT}`);
+  console.log(`📱 Mobile App Connection: http://${localIP}:${PORT}`);
   console.log(`🔌 WebSocket URL: ws://localhost:${PORT}/ws/notifications`);
   
   // Initialize WebSocket service after server starts

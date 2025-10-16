@@ -29,6 +29,7 @@ export const config = {
   },
   
   // ML Model
+  mlServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8000',
   mlModelUrl: process.env.ML_MODEL_URL || 'http://localhost:8000/predict',
   
   // Email
