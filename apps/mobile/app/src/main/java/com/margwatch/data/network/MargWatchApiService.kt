@@ -1,6 +1,6 @@
 package com.margwatch.data.network
 
-import com.margwatch.data.model.*
+import com.margwatch.shared.types.*
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -122,11 +122,6 @@ interface MargWatchApiService {
     suspend fun markAllNotificationsAsRead(
         @Header("Authorization") authorization: String
     ): Response<GenericApiResponse<Any>>
-
-    @GET("notifications/stream")
-    suspend fun getNotificationStream(
-        @Header("Authorization") authorization: String
-    ): Response<okhttp3.ResponseBody>
 
     // --- FCM Token Management ---
     @POST("fcm/token")

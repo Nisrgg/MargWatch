@@ -68,7 +68,7 @@ class NotificationIntegrationService(private val context: Context) {
             // val apiService = ApiService.getInstance()
             // apiService.updateFCMToken(fcmToken, authToken)
             
-            Log.d(TAG, "📤 FCM token sent to backend: $fcmToken")
+            Log.d(TAG, "📤 FCM token sent to backend")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send FCM token to backend", e)
         }

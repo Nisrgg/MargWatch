@@ -1,6 +1,6 @@
 package com.margwatch.data.repository
 
-import com.margwatch.data.model.*
+import com.margwatch.shared.types.*
 import com.margwatch.data.network.ApiClient
 import com.margwatch.data.network.MargWatchApiService
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -39,6 +39,18 @@ class MargWatchRepository(private val apiService: MargWatchApiService = ApiClien
             val latPart = latitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
             val longPart = longitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
             val addressPart = address?.toRequestBody("text/plain".toMediaTypeOrNull())
+
+            // Debug logging for complaint submission (excluding sensitive data)
+            android.util.Log.d("SubmitComplaintDebug", "Submitting Complaint Data:")
+            android.util.Log.d("SubmitComplaintDebug", "  Latitude: $latitude (Type: ${latitude::class.java.simpleName})")
+            android.util.Log.d("SubmitComplaintDebug", "  Longitude: $longitude (Type: ${longitude::class.java.simpleName})")
+            android.util.Log.d("SubmitComplaintDebug", "  Address: $address")
+            // Log details about each image file being sent
+            imageFiles.forEachIndexed { index, file ->
+                android.util.Log.d("SubmitComplaintDebug", "  Image ${index + 1}: Name=${file.name}, Size=${file.length()} bytes, Exists=${file.exists()}")
+            }
+
+
 
             apiService.submitComplaint(
                 bearerToken,
@@ -83,9 +95,8 @@ class MargWatchRepository(private val apiService: MargWatchApiService = ApiClien
         status: String? = null,
         category: String? = null
     ): Result<ComplaintsResponseData> {
-        android.util.Log.d("MargWatchRepository", "Getting user complaints with token: ${token.take(20)}...")
+        android.util.Log.d("MargWatchRepository", "Getting user complaints...")
         val bearerToken = "Bearer $token"
-        android.util.Log.d("MargWatchRepository", "Using bearer token: ${bearerToken.take(30)}...")
         return safeApiCall { apiService.getUserComplaints(bearerToken, page, limit, status, category) }.map { it.data!! }
     }
 
@@ -150,7 +161,7 @@ class MargWatchRepository(private val apiService: MargWatchApiService = ApiClien
     suspend fun completeWorkOrder(
         token: String,
         workOrderId: String,
-        description: String? = null,
+        workDescription: String? = null,
         cost: Double? = null,
         imageFiles: List<File>? = null
     ): Result<WorkOrder> {
@@ -161,7 +172,7 @@ class MargWatchRepository(private val apiService: MargWatchApiService = ApiClien
                 MultipartBody.Part.createFormData("images", file.name, requestBody)
             }
 
-            val descriptionPart = description?.toRequestBody("text/plain".toMediaTypeOrNull())
+            val descriptionPart = workDescription?.toRequestBody("text/plain".toMediaTypeOrNull())
             val costPart = cost?.toString()?.toRequestBody("text/plain".toMediaTypeOrNull())
 
             apiService.completeWorkOrder(

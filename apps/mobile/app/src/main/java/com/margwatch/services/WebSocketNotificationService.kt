@@ -57,7 +57,7 @@ class WebSocketNotificationService(
 
         android.util.Log.d("WebSocket", "Connecting to WebSocket...")
         android.util.Log.d("WebSocket", "URL: $WS_URL")
-        android.util.Log.d("WebSocket", "Token: ${token.take(20)}...")
+        android.util.Log.d("WebSocket", "Token obtained successfully")
 
         client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)

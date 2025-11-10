@@ -138,7 +138,7 @@ class FirebaseNotificationService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        android.util.Log.d("FCM", "🔄 New FCM token: $token")
+        android.util.Log.d("FCM", "🔄 New FCM token received")
         
         // Send token to your backend server
         CoroutineScope(Dispatchers.IO).launch {
@@ -148,7 +148,7 @@ class FirebaseNotificationService : FirebaseMessagingService() {
 
     private suspend fun sendTokenToServer(token: String) {
         try {
-            android.util.Log.d("FCM", "📤 Sending token to server: $token")
+            android.util.Log.d("FCM", "📤 Sending token to server")
             
             // Get the API service instance
             val apiService = com.margwatch.data.network.ApiClient.apiService
@@ -158,7 +158,7 @@ class FirebaseNotificationService : FirebaseMessagingService() {
             val authToken = sharedPrefs.getString("auth_token", null)
             
             if (authToken != null) {
-                val request = com.margwatch.data.model.FCMTokenRequest(token)
+                val request = com.margwatch.shared.types.FCMTokenRequest(token)
                 val response = apiService.updateFCMToken("Bearer $authToken", request)
                 
                 if (response.isSuccessful) {

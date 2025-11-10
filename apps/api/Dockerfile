@@ -7,31 +7,49 @@ WORKDIR /app
 # Install dependencies for Prisma
 RUN apk add --no-cache openssl
 
+# --- FIX START ---
+# Copy the shared-types package into a local packages directory
+# This makes it available to npm install
+COPY ../../packages/shared-types ./packages/shared-types
+
+# Build the shared-types package first
+WORKDIR /app/packages/shared-types
+RUN npm install && npm run build
+WORKDIR /app
+# --- FIX END ---
+
 # Copy package files
-COPY package*.json ./
+COPY apps/api/package*.json ./
 
 # Install ALL dependencies (including dev dependencies for build)
-RUN npm ci
+# Now it can find the local shared-types package
+RUN npm install
 
 # Copy Prisma schema
-COPY prisma ./prisma/
+COPY apps/api/prisma ./prisma/
 
 # Generate Prisma client
 RUN npx prisma generate
 
-# Copy source code
-COPY . .
+# Copy the rest of the source code
+COPY apps/api/ .
+
+# Copy shared-types package to runtime
+COPY ../../packages/shared-types ./packages/shared-types
+
+# Reinstall dependencies to ensure shared-types is properly linked
+RUN npm install
 
 # Build TypeScript
 RUN npm run build
 
 # Copy healthcheck script to dist
-COPY healthcheck.js dist/
+COPY apps/api/healthcheck.js dist/
 
 # Expose port
 EXPOSE 5000
 
-# Create non-root user
+# Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nodejs -u 1001
 

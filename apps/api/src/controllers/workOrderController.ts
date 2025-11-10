@@ -2,9 +2,10 @@ import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { prisma } from '../config/database';
 import { AuthenticatedRequest, WorkOrderRequest, WorkOrderApprovalRequest, ApiResponse } from '../types';
-import { ComplaintStatus } from '@prisma/client';
+import { ComplaintStatus, WorkOrderStatus, UserRole } from '@margwatch/shared-types';
 import { FirebaseNotificationService } from '../services/firebaseNotificationService';
 import { ControllerUtils } from '../utils/controllerUtils';
+import { StateMachineValidator } from '../utils/stateMachineValidator';
 
 export class WorkOrderController {
   /**
@@ -78,7 +79,7 @@ export class WorkOrderController {
           complaintId,
           workerId,
           priority,
-          status: ComplaintStatus.APPROVED,
+          status: WorkOrderStatus.ASSIGNED,
         },
         include: {
           complaint: {
@@ -148,10 +149,16 @@ export class WorkOrderController {
         // Continue execution - notification failure shouldn't break work order creation
       }
 
+      // Filter user data in response
+      const filteredWorkOrder = {
+        ...workOrder,
+        worker: ControllerUtils.filterUserForResponse(workOrder.worker, req.user!.role),
+      };
+
       const response: ApiResponse = ControllerUtils.createResponse(
         true,
         'Work order created successfully',
-        { workOrder }
+        { workOrder: filteredWorkOrder }
       );
 
       res.status(201).json(response);
@@ -167,9 +174,11 @@ export class WorkOrderController {
   static async getWorkerOrders(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const workerId = req.user!.id;
-      const { page = 1, limit = 10, status } = req.query as any;
+      const { page, limit, status } = req.query as { page?: string; limit?: string; status?: string };
 
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      // Validate and sanitize pagination parameters
+      const { page: validatedPage, limit: validatedLimit, skip } = ControllerUtils.validatePaginationParams(page, limit);
+      
       const where: any = { workerId };
 
       if (status) {
@@ -180,7 +189,7 @@ export class WorkOrderController {
         prisma.workOrder.findMany({
           where,
           skip,
-          take: parseInt(limit),
+          take: validatedLimit,
           orderBy: { assignedAt: 'desc' },
           include: {
             complaint: {
@@ -210,15 +219,21 @@ export class WorkOrderController {
         prisma.workOrder.count({ where }),
       ]);
 
-      // Parse image URLs for each work order
-      const workOrdersWithParsedImages = ControllerUtils.parseWorkOrdersImages(workOrders);
+      // Parse image URLs and filter user data for each work order
+      const workOrdersWithParsedImages = ControllerUtils.parseWorkOrdersImages(workOrders).map(workOrder => ({
+        ...workOrder,
+        complaint: workOrder.complaint ? {
+          ...workOrder.complaint,
+          user: ControllerUtils.filterUserForResponse(workOrder.complaint.user, req.user!.role),
+        } : workOrder.complaint,
+      }));
 
       const response: ApiResponse = ControllerUtils.createResponse(
         true,
         'Work orders retrieved successfully',
         {
           workOrders: workOrdersWithParsedImages,
-          pagination: ControllerUtils.createPagination(parseInt(page), parseInt(limit), total),
+          pagination: ControllerUtils.createPagination(validatedPage, validatedLimit, total),
         }
       );
 
@@ -248,9 +263,22 @@ export class WorkOrderController {
       });
 
       if (!workOrder) {
-        res.status(404).json(ControllerUtils.createResponse(
+        res.status(403).json(ControllerUtils.createResponse(
           false,
-          'Work order not found or access denied'
+          'Work order not found or you are not authorized to access this work order'
+        ));
+        return;
+      }
+
+      // Validate state transition using StateMachineValidator
+      if (!StateMachineValidator.validateWorkOrderTransition(
+        workOrder.status as WorkOrderStatus,
+        status as WorkOrderStatus,
+        req.user!.role as UserRole
+      )) {
+        res.status(409).json(ControllerUtils.createResponse(
+          false,
+          `Invalid state transition from ${workOrder.status} to ${status}`
         ));
         return;
       }
@@ -258,11 +286,11 @@ export class WorkOrderController {
       // Update work order
       const updateData: any = { status };
       
-      if (status === ComplaintStatus.PROCESSING && !workOrder.startedAt) {
+      if (status === WorkOrderStatus.IN_PROGRESS && !workOrder.startedAt) {
         updateData.startedAt = new Date();
       }
       
-      if (status === ComplaintStatus.COMPLETED) {
+      if (status === WorkOrderStatus.COMPLETED) {
         updateData.completedAt = new Date();
       }
 
@@ -275,18 +303,23 @@ export class WorkOrderController {
       await prisma.workOrderUpdate.create({
         data: {
           workOrderId: id,
-          status,
+          status: status as WorkOrderStatus,
           description,
           progress,
           imageUrl,
         },
       });
 
-      // Update complaint status if work order is completed
-      if (status === ComplaintStatus.COMPLETED) {
+      // Update complaint status based on work order status
+      if (status === WorkOrderStatus.IN_PROGRESS) {
         await prisma.complaint.update({
           where: { id: workOrder.complaintId },
-          data: { status: ComplaintStatus.COMPLETED },
+          data: { status: ComplaintStatus.PROCESSING },
+        });
+      } else if (status === WorkOrderStatus.PENDING_REVIEW) {
+        await prisma.complaint.update({
+          where: { id: workOrder.complaintId },
+          data: { status: ComplaintStatus.PENDING_REVIEW },
         });
       }
 
@@ -321,9 +354,9 @@ export class WorkOrderController {
       });
 
       if (!workOrder) {
-        res.status(404).json(ControllerUtils.createResponse(
+        res.status(403).json(ControllerUtils.createResponse(
           false,
-          'Work order not found or access denied'
+          'Work order not found or you are not authorized to access this work order'
         ));
         return;
       }
@@ -332,8 +365,7 @@ export class WorkOrderController {
       const updatedWorkOrder = await prisma.workOrder.update({
         where: { id },
         data: {
-          status: ComplaintStatus.COMPLETED,
-          completedAt: new Date(),
+          status: WorkOrderStatus.PENDING_REVIEW,
           workDescription: description,
           cost: cost ? parseFloat(cost) : null,
         },
@@ -347,17 +379,17 @@ export class WorkOrderController {
         },
       });
 
-      // Update complaint status
+      // Update complaint status to pending review
       await prisma.complaint.update({
         where: { id: workOrder.complaintId },
-        data: { status: ComplaintStatus.COMPLETED },
+        data: { status: ComplaintStatus.PENDING_REVIEW },
       });
 
-      // Create final work order update
+      // Create work order update for pending review
       await prisma.workOrderUpdate.create({
         data: {
           workOrderId: id,
-          status: ComplaintStatus.COMPLETED,
+          status: WorkOrderStatus.PENDING_REVIEW,
           description: description,
           progress: 100,
         },
@@ -381,9 +413,17 @@ export class WorkOrderController {
    */
   static async getAllWorkOrders(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { page = 1, limit = 10, status, workerId, adminApprovalStatus } = req.query as any;
+      const { page, limit, status, workerId, adminApprovalStatus } = req.query as { 
+        page?: string; 
+        limit?: string; 
+        status?: string; 
+        workerId?: string; 
+        adminApprovalStatus?: string; 
+      };
 
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      // Validate and sanitize pagination parameters
+      const { page: validatedPage, limit: validatedLimit, skip } = ControllerUtils.validatePaginationParams(page, limit);
+      
       const where: any = {};
 
       if (status) where.status = status;
@@ -394,7 +434,7 @@ export class WorkOrderController {
         prisma.workOrder.findMany({
           where,
           skip,
-          take: parseInt(limit),
+          take: validatedLimit,
           orderBy: { assignedAt: 'desc' },
           include: {
             complaint: {
@@ -437,7 +477,7 @@ export class WorkOrderController {
         'Work orders retrieved successfully',
         {
           workOrders,
-          pagination: ControllerUtils.createPagination(parseInt(page), parseInt(limit), total),
+          pagination: ControllerUtils.createPagination(validatedPage, validatedLimit, total),
         }
       );
 
@@ -482,9 +522,9 @@ export class WorkOrderController {
       });
 
       if (!workOrder) {
-        res.status(404).json(ControllerUtils.createResponse(
+        res.status(403).json(ControllerUtils.createResponse(
           false,
-          'Work order not found or access denied'
+          'Work order not found or you are not authorized to access this work order'
         ));
         return;
       }
@@ -562,24 +602,9 @@ export class WorkOrderController {
       });
 
       if (!workOrder) {
-        res.status(404).json(ControllerUtils.createResponse(
+        res.status(403).json(ControllerUtils.createResponse(
           false,
-          'Work order not found or access denied'
-        ));
-        return;
-      }
-
-      // Validate status transition
-      const validTransitions: { [key in ComplaintStatus]?: ComplaintStatus[] } = {
-        [ComplaintStatus.APPROVED]: [ComplaintStatus.PROCESSING],
-        [ComplaintStatus.PROCESSING]: [ComplaintStatus.PROCESSING, ComplaintStatus.COMPLETED],
-        [ComplaintStatus.COMPLETED]: [ComplaintStatus.COMPLETED],
-      };
-
-      if (!validTransitions[workOrder.status]?.includes(status)) {
-        res.status(400).json(ControllerUtils.createResponse(
-          false,
-          `Invalid status transition from ${workOrder.status} to ${status}`
+          'Work order not found or you are not authorized to access this work order'
         ));
         return;
       }
@@ -587,11 +612,11 @@ export class WorkOrderController {
       // Update work order
       const updateData: any = { status };
       
-      if (status === ComplaintStatus.PROCESSING && workOrder.status !== ComplaintStatus.PROCESSING && !workOrder.startedAt) {
+      if (status === WorkOrderStatus.IN_PROGRESS && workOrder.status !== WorkOrderStatus.IN_PROGRESS && !workOrder.startedAt) {
         updateData.startedAt = new Date();
       }
       
-      if (status === ComplaintStatus.COMPLETED && workOrder.status !== ComplaintStatus.COMPLETED) {
+      if (status === WorkOrderStatus.COMPLETED && workOrder.status !== WorkOrderStatus.COMPLETED) {
         updateData.completedAt = new Date();
       }
 
@@ -637,8 +662,8 @@ export class WorkOrderController {
             }
           );
         }
-      } else if (status === ComplaintStatus.PROCESSING && workOrder.status !== ComplaintStatus.PROCESSING) {
-        // Only send notification if transitioning TO PROCESSING for the first time
+      } else if (status === WorkOrderStatus.IN_PROGRESS && workOrder.status !== WorkOrderStatus.IN_PROGRESS) {
+        // Only send notification if transitioning TO IN_PROGRESS for the first time
         await FirebaseNotificationService.getInstance().createAndSendNotification(
           workOrder.complaint.userId,
           'Work Started',
@@ -647,11 +672,11 @@ export class WorkOrderController {
           {
             workOrderId: id,
             complaintId: workOrder.complaintId,
-            status: 'PROCESSING'
+            status: 'IN_PROGRESS'
           }
         );
-      } else if (status === ComplaintStatus.PROCESSING && workOrder.status === ComplaintStatus.PROCESSING) {
-        // Send notification for progress updates within PROCESSING status
+      } else if (status === WorkOrderStatus.IN_PROGRESS && workOrder.status === WorkOrderStatus.IN_PROGRESS) {
+        // Send notification for progress updates within IN_PROGRESS status
         await FirebaseNotificationService.getInstance().createAndSendNotification(
           workOrder.complaint.userId,
           'Work Progress Update',
@@ -696,8 +721,12 @@ export class WorkOrderController {
       }
 
       const { id } = req.params;
-      const { description, workProofImages } = req.body;
+      const { description, cost } = req.body;
       const workerId = req.user!.id;
+
+      // Get uploaded image URLs from Cloudinary middleware
+      const imageUrls = req.body.imageUrls || [];
+      const uploadedImages = req.body.uploadedImages || [];
 
       // Check if work order exists and belongs to the worker
       const workOrder = await prisma.workOrder.findFirst({
@@ -722,17 +751,17 @@ export class WorkOrderController {
       });
 
       if (!workOrder) {
-        res.status(404).json(ControllerUtils.createResponse(
+        res.status(403).json(ControllerUtils.createResponse(
           false,
-          'Work order not found or access denied'
+          'Work order not found or you are not authorized to access this work order'
         ));
         return;
       }
 
-      if (workOrder.status !== ComplaintStatus.PROCESSING) {
+      if (workOrder.status !== WorkOrderStatus.IN_PROGRESS) {
         res.status(400).json(ControllerUtils.createResponse(
           false,
-          'Work order must be in processing status to complete'
+          'Work order must be in progress status to complete'
         ));
         return;
       }
@@ -741,9 +770,9 @@ export class WorkOrderController {
       const updatedWorkOrder = await prisma.workOrder.update({
         where: { id },
         data: {
-          status: ComplaintStatus.COMPLETED,
-          completedAt: new Date(),
-          adminApprovalStatus: 'PENDING', // Set to pending admin approval
+          status: WorkOrderStatus.PENDING_REVIEW,
+          workDescription: description,
+          cost: cost ? parseFloat(cost) : null,
         },
         include: {
           complaint: {
@@ -768,7 +797,7 @@ export class WorkOrderController {
           status: ComplaintStatus.COMPLETED,
           description: description || 'Work completed successfully',
           progress: 100,
-          imageUrl: workProofImages ? JSON.stringify(workProofImages) : req.body.imageUrl || null,
+          imageUrl: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
         },
       });
 
@@ -1051,6 +1080,204 @@ export class WorkOrderController {
       res.status(500).json(ControllerUtils.createResponse(false, message, undefined, errorMessage));
     }
   }
+
+  /**
+   * Admin review of completed work order
+   */
+  static async reviewWorkOrder(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json(ControllerUtils.createResponse(
+          false,
+          'Validation failed',
+          undefined,
+          errors.array().map(err => err.msg).join(', ')
+        ));
+        return;
+      }
+
+      const { id } = req.params;
+      const { approved, comments, qualityScore } = req.body;
+      const adminId = req.user!.id;
+
+      // Find the work order
+      const workOrder = await prisma.workOrder.findUnique({
+        where: { id },
+        include: {
+          complaint: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          worker: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      if (!workOrder) {
+        res.status(404).json(ControllerUtils.createResponse(
+          false,
+          'Work order not found'
+        ));
+        return;
+      }
+
+      if (workOrder.status !== WorkOrderStatus.PENDING_REVIEW) {
+        res.status(400).json(ControllerUtils.createResponse(
+          false,
+          'Work order must be in PENDING_REVIEW status for admin review'
+        ));
+        return;
+      }
+
+      let updatedWorkOrder;
+      let updatedComplaint;
+
+      if (approved) {
+        // Approve the work order
+        updatedWorkOrder = await prisma.workOrder.update({
+          where: { id },
+          data: {
+            status: WorkOrderStatus.COMPLETED,
+            adminApprovalStatus: 'APPROVED',
+            adminApprovedBy: adminId,
+            adminApprovedAt: new Date(),
+            completedAt: new Date(),
+            qualityScore: qualityScore || null,
+          },
+        });
+
+        // Update complaint status to completed
+        updatedComplaint = await prisma.complaint.update({
+          where: { id: workOrder.complaintId },
+          data: {
+            status: ComplaintStatus.COMPLETED,
+          },
+        });
+
+        // Create work order update
+        await prisma.workOrderUpdate.create({
+          data: {
+            workOrderId: id,
+            status: WorkOrderStatus.COMPLETED,
+            description: comments || 'Work approved by admin',
+            progress: 100,
+          },
+        });
+
+        // Send notification to user
+        try {
+          await FirebaseNotificationService.getInstance().createAndSendNotification(
+            workOrder.complaint.userId,
+            'Complaint Resolved',
+            `Your complaint "${workOrder.complaint.title}" has been successfully resolved!`,
+            'complaint_resolved',
+            {
+              workOrderId: id,
+              complaintId: workOrder.complaintId,
+              status: 'COMPLETED'
+            }
+          );
+        } catch (notificationError) {
+          console.error('Failed to send notification to user:', notificationError);
+        }
+
+        // Send notification to worker
+        try {
+          await FirebaseNotificationService.getInstance().createAndSendNotification(
+            workOrder.workerId,
+            'Work Approved',
+            `Your work on "${workOrder.complaint.title}" has been approved by admin`,
+            'work_approved',
+            {
+              workOrderId: id,
+              complaintId: workOrder.complaintId,
+              status: 'COMPLETED'
+            }
+          );
+        } catch (notificationError) {
+          console.error('Failed to send notification to worker:', notificationError);
+        }
+
+      } else {
+        // Reject the work order
+        updatedWorkOrder = await prisma.workOrder.update({
+          where: { id },
+          data: {
+            status: WorkOrderStatus.IN_PROGRESS,
+            adminApprovalStatus: 'REJECTED',
+            adminApprovedBy: adminId,
+            adminApprovedAt: new Date(),
+            adminRejectionReason: comments,
+            reworkCount: { increment: 1 },
+          },
+        });
+
+        // Update complaint status back to processing
+        updatedComplaint = await prisma.complaint.update({
+          where: { id: workOrder.complaintId },
+          data: {
+            status: ComplaintStatus.PROCESSING,
+          },
+        });
+
+        // Create work order update
+        await prisma.workOrderUpdate.create({
+          data: {
+            workOrderId: id,
+            status: WorkOrderStatus.IN_PROGRESS,
+            description: comments || 'Work rejected by admin, please revise',
+            progress: 50,
+          },
+        });
+
+        // Send notification to worker
+        try {
+          await FirebaseNotificationService.getInstance().createAndSendNotification(
+            workOrder.workerId,
+            'Work Needs Revision',
+            `Your work on "${workOrder.complaint.title}" needs revision. Admin comments: ${comments || 'Please check and resubmit'}`,
+            'work_revision',
+            {
+              workOrderId: id,
+              complaintId: workOrder.complaintId,
+              status: 'IN_PROGRESS'
+            }
+          );
+        } catch (notificationError) {
+          console.error('Failed to send notification to worker:', notificationError);
+        }
+      }
+
+      const response: ApiResponse = ControllerUtils.createResponse(
+        true,
+        `Work order ${approved ? 'approved' : 'rejected'} successfully`,
+        {
+          workOrder: updatedWorkOrder,
+          complaint: updatedComplaint,
+        }
+      );
+
+      res.json(response);
+    } catch (error) {
+      const { message, error: errorMessage } = ControllerUtils.handleError(error, 'review work order');
+      res.status(500).json(ControllerUtils.createResponse(false, message, undefined, errorMessage));
+    }
+  }
 }
 
 // Validation rules
@@ -1073,7 +1300,7 @@ export const completeWorkOrderValidation = [
 ];
 
 export const updateWorkStatusValidation = [
-  body('status').isIn(Object.values(ComplaintStatus)).withMessage('Valid status is required'),
+  body('status').isIn(Object.values(WorkOrderStatus)).withMessage('Valid status is required'),
   body('description').optional().trim(),
   body('progress').optional().custom((value) => {
     if (value === undefined || value === null || value === '') return true;
@@ -1083,9 +1310,10 @@ export const updateWorkStatusValidation = [
   body('imageUrl').optional().trim(),
 ];
 
-export const completeWorkValidation = [
-  body('description').optional().trim(),
-  body('workProofImages').optional().isArray().withMessage('Work proof images must be an array'),
+export const reviewWorkOrderValidation = [
+  body('approved').isBoolean().withMessage('Approved must be a boolean'),
+  body('comments').optional().trim(),
+  body('qualityScore').optional().isInt({ min: 1, max: 5 }).withMessage('Quality score must be between 1 and 5'),
 ];
 
 export const approveWorkOrderValidation = [

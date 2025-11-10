@@ -30,7 +30,8 @@
       "@/routes/*": ["src/routes/*"],
       "@/controllers/*": ["src/controllers/*"],
       "@/services/*": ["src/services/*"],
-      "@/models/*": ["src/models/*"]
+      "@/models/*": ["src/models/*"],
+      "@margwatch/shared-types": ["./packages/shared-types"]
     },
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,

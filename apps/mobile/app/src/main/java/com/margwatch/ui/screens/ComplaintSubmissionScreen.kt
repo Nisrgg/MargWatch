@@ -6,7 +6,10 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.net.Uri
-import android.widget.Toast
+import com.margwatch.ui.components.MargWatchSnackbarHost
+import com.margwatch.ui.components.showSuccess
+import com.margwatch.ui.components.showInfo
+import com.margwatch.ui.components.showError
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -16,6 +19,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
@@ -61,22 +66,30 @@ fun ComplaintSubmissionScreen(
     onNavigateBack: () -> Unit,
     complaintViewModel: ComplaintViewModel = viewModel()
 ) {
-    val uiState by complaintViewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
     
+    // Get UI state from ViewModel
+    val uiState by complaintViewModel.uiState.collectAsState()
+    
     // Network connectivity state
     var isOnline by remember { mutableStateOf(true) }
 
-    var currentLatitude by remember { mutableStateOf<Float?>(null) }
-    var currentLongitude by remember { mutableStateOf<Float?>(null) }
-    var currentAddress by remember { mutableStateOf<String?>(null) }
-    var capturedImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var authToken by remember { mutableStateOf<String?>(null) }
-    var showCamera by remember { mutableStateOf(false) }
-    var showMap by remember { mutableStateOf(false) }
-    var showLocationDialog by remember { mutableStateOf(false) }
+    var currentLatitude by rememberSaveable { mutableStateOf<Float?>(null) }
+    var currentLongitude by rememberSaveable { mutableStateOf<Float?>(null) }
+    var currentAddress by rememberSaveable { mutableStateOf<String?>(null) }
+    var capturedImages by rememberSaveable(
+        stateSaver = listSaver(
+            save = { list -> list.map { it.toString() } },
+            restore = { list -> list.map { Uri.parse(it) } }
+        )
+    ) { mutableStateOf<List<Uri>>(emptyList()) }
+    var authToken by rememberSaveable { mutableStateOf<String?>(null) }
+    var showCamera by rememberSaveable { mutableStateOf(false) }
+    var showMap by rememberSaveable { mutableStateOf(false) }
+    var showLocationDialog by rememberSaveable { mutableStateOf(false) }
 
     val locationPermissionsState = rememberMultiplePermissionsState(
         permissions = listOf(
@@ -123,13 +136,13 @@ fun ComplaintSubmissionScreen(
                 currentAddress = "Detected Address (Placeholder)"
             }
         } else {
-            Toast.makeText(context, "Location permission denied", Toast.LENGTH_SHORT).show()
+            showError("Location permission denied")
         }
     }
 
     LaunchedEffect(uiState.submissionSuccess) {
         if (uiState.submissionSuccess) {
-            Toast.makeText(context, "Complaint Submitted Successfully!", Toast.LENGTH_SHORT).show()
+            showSuccess("Complaint Submitted Successfully!")
             complaintViewModel.submissionSuccessHandled()
             onNavigateBack() // Go back to previous screen (e.g., MainScreen)
         }
@@ -137,7 +150,7 @@ fun ComplaintSubmissionScreen(
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            showError(it)
             complaintViewModel.clearError()
         }
     }
@@ -162,6 +175,9 @@ fun ComplaintSubmissionScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
+        },
+        snackbarHost = {
+            MargWatchSnackbarHost(snackbarHostState)
         }
     ) { paddingValues ->
         Box(
@@ -390,7 +406,7 @@ fun ComplaintSubmissionScreen(
                                                     }
                                                 } else {
                                                     android.util.Log.d("LocationButton", "Location is null")
-                                                    Toast.makeText(context, "Could not get current location. Please try manual entry.", Toast.LENGTH_SHORT).show()
+                                                    showError("Could not get current location. Please try manual entry.")
                                                 }
                                             }
                                         } else {
@@ -605,119 +621,153 @@ fun ComplaintSubmissionScreen(
                         GradientButton(
                             text = if (uiState.isLoading) "Submitting..." else "Submit Report",
                             onClick = {
-                    if (authToken != null && currentLatitude != null && currentLongitude != null && capturedImages.isNotEmpty()) {
-                        coroutineScope.launch {
-                            if (isOnline) {
-                                // Online submission
-                                android.util.Log.d("ComplaintSubmission", "Submitting online...")
-                                val imageFiles = capturedImages.map { uri ->
-                                    val fileName = "image_${System.currentTimeMillis()}.jpg"
-                                    val file = File(context.cacheDir, fileName)
+                                android.util.Log.d("ComplaintSubmission", "=== SUBMIT BUTTON CLICKED ===")
+                                android.util.Log.d("ComplaintSubmission", "Current state:")
+                                android.util.Log.d("ComplaintSubmission", "  - currentLatitude: $currentLatitude")
+                                android.util.Log.d("ComplaintSubmission", "  - currentLongitude: $currentLongitude")
+                                android.util.Log.d("ComplaintSubmission", "  - capturedImages.size: ${capturedImages.size}")
+                                android.util.Log.d("ComplaintSubmission", "  - authToken: Present")
+                                android.util.Log.d("ComplaintSubmission", "  - isOnline: $isOnline")
+                                
+                                // Validate coordinates before submission
+                                if (currentLatitude != null && currentLongitude != null) {
+                                    android.util.Log.d("ComplaintSubmission", "Coordinates are not null, validating...")
                                     
-                                    context.contentResolver.openInputStream(uri)?.use { input ->
-                                        file.outputStream().use { output ->
-                                            input.copyTo(output)
-                                        }
+                                    // Check for invalid coordinates (0.0 or outside Gujarat bounds)
+                                    val lat = currentLatitude!!
+                                    val lng = currentLongitude!!
+                                    val isValidCoordinate = lat != 0.0f && lng != 0.0f &&
+                                            lat in 20.1f..24.7f && lng in 68.1f..74.4f
+                                    
+                                    android.util.Log.d("ComplaintSubmission", "Coordinate validation:")
+                                    android.util.Log.d("ComplaintSubmission", "  - lat != 0.0f: ${lat != 0.0f}")
+                                    android.util.Log.d("ComplaintSubmission", "  - lng != 0.0f: ${lng != 0.0f}")
+                                    android.util.Log.d("ComplaintSubmission", "  - lat in Gujarat bounds: ${lat in 20.1f..24.7f}")
+                                    android.util.Log.d("ComplaintSubmission", "  - lng in Gujarat bounds: ${lng in 68.1f..74.4f}")
+                                    android.util.Log.d("ComplaintSubmission", "  - isValidCoordinate: $isValidCoordinate")
+                                    
+                                    if (!isValidCoordinate) {
+                                        android.util.Log.e("ComplaintSubmission", "INVALID COORDINATES - Stopping submission")
+                                        showError("Invalid GPS coordinates. Please ensure location services are enabled and you are within Gujarat, India.")
+                                        return@GradientButton
                                     }
-                                    file
-                                }
-                                
-                                android.util.Log.d("ComplaintSubmission", "Starting complaint submission...")
-                                android.util.Log.d("ComplaintSubmission", "Images: ${imageFiles.size}, Location: $currentLatitude, $currentLongitude")
-                                
-                                complaintViewModel.submitComplaint(
-                                    authToken!!,
-                                    imageFiles,
-                                    currentLatitude!!,
-                                    currentLongitude!!,
-                                    currentAddress
-                                )
-                                
-                                android.util.Log.d("ComplaintSubmission", "Complaint submission initiated, waiting for result...")
-                                // Wait for submission result before showing notification
-                                // The notification will be handled by observing the ViewModel state
-                            } else {
-                                // Offline submission - save locally
-                                android.util.Log.d("ComplaintSubmission", "Saving complaint offline...")
-                                val imageFiles = capturedImages.mapNotNull { uri ->
-                                    try {
-                                        val fileName = "image_${System.currentTimeMillis()}.jpg"
-                                        val file = File(context.cacheDir, fileName)
-                                        
-                                        context.contentResolver.openInputStream(uri)?.use { input ->
-                                            file.outputStream().use { output ->
-                                                input.copyTo(output)
+                                    
+                                    if (authToken != null && capturedImages.isNotEmpty()) {
+                                        android.util.Log.d("ComplaintSubmission", "All validations passed, proceeding with submission...")
+                                        coroutineScope.launch {
+                                            if (isOnline) {
+                                                // Online submission with compression
+                                                android.util.Log.d("ComplaintSubmission", "Submitting online with compression...")
+                                                android.util.Log.d("ComplaintSubmission", "Images: ${capturedImages.size}, Location: $lat, $lng")
+                                                
+                                                complaintViewModel.submitComplaintWithCompression(
+                                                    context,
+                                                    authToken!!,
+                                                    capturedImages,
+                                                    lat,
+                                                    lng,
+                                                    currentAddress
+                                                )
+                                                
+                                                android.util.Log.d("ComplaintSubmission", "Complaint submission initiated, waiting for result...")
+                                                // Wait for submission result before showing notification
+                                                // The notification will be handled by observing the ViewModel state
+                                            } else {
+                                            // Offline submission - save locally
+                                            android.util.Log.d("ComplaintSubmission", "Saving complaint offline...")
+                                            val imageFiles = capturedImages.mapNotNull { uri ->
+                                                try {
+                                                    val fileName = "image_${System.currentTimeMillis()}.jpg"
+                                                    val file = File(context.cacheDir, fileName)
+                                                    
+                                                    context.contentResolver.openInputStream(uri)?.use { input ->
+                                                        file.outputStream().use { output ->
+                                                            input.copyTo(output)
+                                                        }
+                                                    }
+                                                    
+                                                    if (file.exists() && file.length() > 0) {
+                                                        android.util.Log.d("ComplaintSubmission", "Created image file: ${file.name}, size: ${file.length()}")
+                                                        file
+                                                    } else {
+                                                        android.util.Log.w("ComplaintSubmission", "Image file creation failed or empty: ${file.name}")
+                                                        null
+                                                    }
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("ComplaintSubmission", "Failed to create image file", e)
+                                                    null
+                                                }
+                                            }
+                                            
+                                            if (imageFiles.isEmpty()) {
+                                                showError("Failed to save images. Please try again.")
+                                                return@launch
+                                            }
+                                            
+                                            val offlineComplaint = OfflineComplaint(
+                                                title = "Road Issue Report",
+                                                description = "Reported via MargWatch app",
+                                                category = "POTHOLE", // Default category
+                                                latitude = lat,
+                                                longitude = lng,
+                                                address = currentAddress,
+                                                imageFiles = imageFiles,
+                                                imageUris = capturedImages.map { it.toString() },
+                                                userId = "offline_user_${System.currentTimeMillis()}" // Temporary offline user ID
+                                            )
+                                            
+                                            // Save offline complaint
+                                            val offlineManager = OfflineComplaintManager(context)
+                                            coroutineScope.launch {
+                                                try {
+                                                    val complaintId = offlineManager.saveOfflineComplaint(offlineComplaint)
+                                                    android.util.Log.d("ComplaintSubmission", "Saved offline complaint: $complaintId")
+                                                    
+                                                    // Offline complaint saved - no notification needed
+                                                    // FCM notification will be sent when complaint is uploaded online
+                                                    android.util.Log.d("ComplaintSubmission", "Offline complaint saved - will notify when uploaded online")
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("ComplaintSubmission", "Failed to save offline complaint", e)
+                                                    showError("Failed to save complaint offline: ${e.message}")
+                                                }
                                             }
                                         }
-                                        
-                                        if (file.exists() && file.length() > 0) {
-                                            android.util.Log.d("ComplaintSubmission", "Created image file: ${file.name}, size: ${file.length()}")
-                                            file
-                                        } else {
-                                            android.util.Log.w("ComplaintSubmission", "Image file creation failed or empty: ${file.name}")
-                                            null
+                                    }
+                                } else {
+                                    android.util.Log.e("ComplaintSubmission", "VALIDATION FAILED - Missing required data")
+                                    val message = when {
+                                        authToken == null -> {
+                                            android.util.Log.e("ComplaintSubmission", "  - Missing authToken")
+                                            "Please login first"
                                         }
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("ComplaintSubmission", "Failed to create image file", e)
-                                        null
+                                        currentLatitude == null || currentLongitude == null -> {
+                                            android.util.Log.e("ComplaintSubmission", "  - Missing coordinates")
+                                            "Please get location first"
+                                        }
+                                        capturedImages.isEmpty() -> {
+                                            android.util.Log.e("ComplaintSubmission", "  - No images captured")
+                                            "Please take at least one photo"
+                                        }
+                                        else -> {
+                                            android.util.Log.e("ComplaintSubmission", "  - Unknown validation error")
+                                            "Please complete all required fields"
+                                        }
                                     }
+                                    android.util.Log.e("ComplaintSubmission", "Showing error: $message")
+                                    showError(message)
                                 }
-                                
-                                if (imageFiles.isEmpty()) {
-                                    Toast.makeText(
-                                        context,
-                                        "Failed to save images. Please try again.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    return@launch
-                                }
-                                
-                                val offlineComplaint = OfflineComplaint(
-                                    title = "Road Issue Report",
-                                    description = "Reported via MargWatch app",
-                                    category = "POTHOLE", // Default category
-                                    latitude = currentLatitude!!,
-                                    longitude = currentLongitude!!,
-                                    address = currentAddress,
-                                    imageFiles = imageFiles,
-                                    imageUris = capturedImages.map { it.toString() },
-                                    userId = "offline_user_${System.currentTimeMillis()}" // Temporary offline user ID
-                                )
-                                
-                                // Save offline complaint
-                                val offlineManager = OfflineComplaintManager(context)
-                                coroutineScope.launch {
-                                    try {
-                                        val complaintId = offlineManager.saveOfflineComplaint(offlineComplaint)
-                                        android.util.Log.d("ComplaintSubmission", "Saved offline complaint: $complaintId")
-                                        
-                                        // Offline complaint saved - no notification needed
-                                        // FCM notification will be sent when complaint is uploaded online
-                                        android.util.Log.d("ComplaintSubmission", "Offline complaint saved - will notify when uploaded online")
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("ComplaintSubmission", "Failed to save offline complaint", e)
-                                        Toast.makeText(
-                                            context,
-                                            "Failed to save complaint offline: ${e.message}",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                }
+                            } else {
+                                android.util.Log.e("ComplaintSubmission", "COORDINATES ARE NULL - Stopping submission")
+                                showError("Please get your location first by tapping 'Get Location' or 'Select on Map'")
                             }
-                        }
-                    } else {
-                        val message = when {
-                            authToken == null -> "Please login first"
-                            currentLatitude == null || currentLongitude == null -> "Please get location first"
-                            capturedImages.isEmpty() -> "Please take at least one photo"
-                            else -> "Please complete all required fields"
-                        }
-                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading && currentLatitude != null && currentLongitude != null && capturedImages.isNotEmpty() && authToken != null
-                    )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !uiState.isLoading && 
+                                currentLatitude != null && currentLongitude != null && 
+                                currentLatitude != 0.0f && currentLongitude != 0.0f &&
+                                (currentLatitude ?: 0f) in 20.1f..24.7f && (currentLongitude ?: 0f) in 68.1f..74.4f &&
+                                capturedImages.isNotEmpty() && authToken != null
+                        )
                 }
             }
         }
@@ -818,7 +868,7 @@ private fun getLocation(context: Context, fusedLocationClient: com.google.androi
             }
             .addOnFailureListener { e ->
                 android.util.Log.e("getLocation", "Failed to get location: ${e.message}")
-                Toast.makeText(context, "Failed to get location: ${e.message}", Toast.LENGTH_SHORT).show()
+                showError("Failed to get location: ${e.message}")
                 onLocationResult(null)
             }
     } else {

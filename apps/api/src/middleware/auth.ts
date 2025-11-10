@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthUtils } from '../utils/auth';
 import { prisma } from '../config/database';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@margwatch/shared-types';
 import { AuthenticatedRequest } from '../types';
 
 export const authenticateToken = async (
@@ -46,7 +46,7 @@ export const authenticateToken = async (
     req.user = {
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role as UserRole,
     };
 
     next();
@@ -83,4 +83,5 @@ export const requireRole = (roles: UserRole[]) => {
 
 export const requireAdmin = requireRole([UserRole.ADMIN]);
 export const requireWorker = requireRole([UserRole.WORKER, UserRole.ADMIN]);
+export const requireWorkerOrAdmin = requireRole([UserRole.WORKER, UserRole.ADMIN]);
 export const requireUser = requireRole([UserRole.USER, UserRole.WORKER, UserRole.ADMIN]);

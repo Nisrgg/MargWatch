@@ -4,9 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.margwatch.data.local.TokenManager
-import com.margwatch.data.model.LoginRequest
-import com.margwatch.data.model.RegisterRequest
-import com.margwatch.data.model.User
+import com.margwatch.shared.types.*
 import com.margwatch.data.repository.MargWatchRepository
 import com.margwatch.services.FirebaseNotificationManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +50,7 @@ class AuthViewModel(
             
             tokenManager?.getToken()?.collect { token ->
                 if (token != null) {
-                    android.util.Log.d("AuthViewModel", "Found existing token: ${token.take(20)}...")
+                    android.util.Log.d("AuthViewModel", "Found existing token")
                     // Verify token is still valid by getting user profile
                     val result = repository.getUserProfile(token)
                     result.onSuccess { user ->
@@ -85,7 +83,7 @@ class AuthViewModel(
             result.onSuccess { loginData ->
                 // Save token and user info
                 tokenManager?.let { manager ->
-                    android.util.Log.d("AuthViewModel", "Saving token: ${loginData.token.take(20)}...")
+                    android.util.Log.d("AuthViewModel", "Saving token")
                     manager.saveToken(loginData.token)
                     manager.saveUserInfo(loginData.user.id, loginData.user.email)
                     android.util.Log.d("AuthViewModel", "Token saved successfully")
@@ -178,7 +176,7 @@ class AuthViewModel(
             try {
                 val token = tokenManager?.getToken()?.first() as? String
                 if (token != null) {
-                    android.util.Log.d("AuthViewModel", "Fetching user profile with token: ${token.take(20)}...")
+                    android.util.Log.d("AuthViewModel", "Fetching user profile")
                     val result = repository.getUserProfile(token)
                     result.onSuccess { user ->
                         android.util.Log.d("AuthViewModel", "User profile loaded successfully: ${user.email}")
@@ -282,7 +280,7 @@ class AuthViewModel(
                 val fcmToken = fcmManager.getFCMToken()
                 
                 if (fcmToken != null) {
-                    android.util.Log.d("AuthViewModel", "FCM Token obtained: ${fcmToken.take(20)}...")
+                    android.util.Log.d("AuthViewModel", "FCM Token obtained")
                     
                     // Register FCM token with backend
                     val result = repository.updateFCMToken(authToken, fcmToken)

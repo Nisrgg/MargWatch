@@ -1,6 +1,10 @@
 package com.margwatch.ui.screens
 
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -10,6 +14,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -28,8 +34,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.margwatch.data.local.TokenManager
-import com.margwatch.data.model.WorkOrder
+import com.margwatch.shared.types.UserRole
+import com.margwatch.shared.types.WorkOrder
+import com.margwatch.ui.components.StatusChip
+import com.margwatch.ui.components.MargWatchSnackbarHost
+import com.margwatch.ui.components.StatusType
 import com.margwatch.ui.components.ImageSelectionDialog
+import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -39,11 +51,14 @@ import java.util.*
 fun WorkerDashboardScreen(
     onNavigateBack: () -> Unit,
     onNavigateToHeatmap: () -> Unit = {},
-    workOrderViewModel: WorkOrderViewModel = viewModel()
+    workOrderViewModel: WorkOrderViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
 ) {
     val uiState by workOrderViewModel.uiState.collectAsState()
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
+    val currentUser = authViewModel.currentUser
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Load work orders when screen is first composed
     LaunchedEffect(Unit) {
@@ -68,6 +83,9 @@ fun WorkerDashboardScreen(
                     }
                 }
             )
+        },
+        snackbarHost = {
+            MargWatchSnackbarHost(snackbarHostState)
         }
     ) { paddingValues ->
         when {
@@ -196,7 +214,8 @@ fun WorkerDashboardScreen(
                     status,
                     description,
                     cost,
-                    imageFiles
+                    imageFiles,
+                    currentUser?.role ?: UserRole.USER
                 ) { success, error ->
                     if (success) {
                         workOrderViewModel.hideDialogs()
@@ -211,34 +230,24 @@ fun WorkerDashboardScreen(
     if (uiState.showCompleteDialog && uiState.selectedWorkOrder != null) {
         CompleteWorkDialog(
             workOrder = uiState.selectedWorkOrder!!,
+            uiState = uiState,
             onDismiss = { workOrderViewModel.hideDialogs() },
-            onComplete = { description, cost, images ->
-                // Convert URIs to Files for upload
-                val imageFiles = images?.map { uri ->
-                    val fileName = "completion_image_${System.currentTimeMillis()}.jpg"
-                    val file = File(context.cacheDir, fileName)
-                    
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        file.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    file
-                } ?: emptyList()
-                
+            onComplete = { 
                 workOrderViewModel.completeWorkOrder(
                     tokenManager,
-                    uiState.selectedWorkOrder!!.id,
-                    description,
-                    cost,
-                    imageFiles
+                    context,
+                    currentUser?.role ?: UserRole.USER
                 ) { success, error ->
                     if (success) {
                         workOrderViewModel.hideDialogs()
                         workOrderViewModel.loadWorkOrders(tokenManager) // Refresh after completion
                     }
                 }
-            }
+            },
+            onPhotoCaptured = { uri -> workOrderViewModel.onPhotoCaptured(uri) },
+            onRemoveImage = { uri -> workOrderViewModel.removeCompletionImage(uri) },
+            onDescriptionChange = { description -> workOrderViewModel.updateCompletionDescription(description) },
+            onCostChange = { cost -> workOrderViewModel.updateCompletionCost(cost) }
         )
     }
 }
@@ -271,13 +280,13 @@ fun WorkStatsCard(workOrders: List<WorkOrder>) {
                 
                 StatCard(
                     title = "In Progress",
-                    value = workOrders.count { it.status.lowercase() == "processing" }.toString(),
+                    value = workOrders.count { it.status.name.lowercase() == "processing" }.toString(),
                     icon = Icons.Default.Refresh
                 )
                 
                 StatCard(
                     title = "Completed",
-                    value = workOrders.count { it.status.lowercase() == "completed" }.toString(),
+                    value = workOrders.count { it.status.name.lowercase() == "completed" }.toString(),
                     icon = Icons.Default.CheckCircle
                 )
             }
@@ -417,7 +426,10 @@ fun WorkOrderCard(
                     fontWeight = FontWeight.Bold
                 )
                 
-                WorkOrderStatusChip(status = workOrder.status)
+                StatusChip(
+                    status = workOrder.status.name,
+                    type = StatusType.WORK_ORDER
+                )
             }
             
             Spacer(modifier = Modifier.height(8.dp))
@@ -478,7 +490,7 @@ fun WorkOrderCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (workOrder.status.lowercase() != "completed") {
+                if (workOrder.status.name.lowercase() != "completed") {
                     Button(
                         onClick = onUpdateStatus,
                         modifier = Modifier.weight(1f)
@@ -532,27 +544,6 @@ fun WorkOrderCard(
     }
 }
 
-@Composable
-fun WorkOrderStatusChip(status: String) {
-    val (backgroundColor, textColor) = when (status.lowercase()) {
-        "assigned" -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-        "processing" -> MaterialTheme.colorScheme.secondary to MaterialTheme.colorScheme.onSecondary
-        "completed" -> MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.onTertiary
-        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    
-    Card(
-        colors = CardDefaults.cardColors(containerColor = backgroundColor)
-    ) {
-        Text(
-            text = status.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UpdateWorkStatusDialog(
@@ -560,11 +551,16 @@ fun UpdateWorkStatusDialog(
     onDismiss: () -> Unit,
     onUpdate: (String, String?, Double?, List<Uri>?) -> Unit
 ) {
-    var status by remember { mutableStateOf(workOrder.status) }
-    var description by remember { mutableStateOf(workOrder.description ?: "") }
-    var cost by remember { mutableStateOf(workOrder.cost?.toString() ?: "") }
-    var selectedImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var showImageDialog by remember { mutableStateOf(false) }
+    var status by rememberSaveable { mutableStateOf(workOrder.status.name) }
+    var description by rememberSaveable { mutableStateOf(workOrder.description ?: "") }
+    var cost by rememberSaveable { mutableStateOf(workOrder.cost?.toString() ?: "") }
+    var selectedImages by rememberSaveable(
+        stateSaver = listSaver(
+            save = { list -> list.map { it.toString() } },
+            restore = { list -> list.map { Uri.parse(it) } }
+        )
+    ) { mutableStateOf<List<Uri>>(emptyList()) }
+    var showImageDialog by rememberSaveable { mutableStateOf(false) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -731,13 +727,61 @@ fun UpdateWorkStatusDialog(
 @Composable
 fun CompleteWorkDialog(
     workOrder: WorkOrder,
+    uiState: WorkOrderUiState,
     onDismiss: () -> Unit,
-    onComplete: (String?, Double?, List<Uri>?) -> Unit
+    onComplete: () -> Unit,
+    onPhotoCaptured: (Uri) -> Unit,
+    onRemoveImage: (Uri) -> Unit,
+    onDescriptionChange: (String) -> Unit,
+    onCostChange: (String) -> Unit
 ) {
-    var description by remember { mutableStateOf(workOrder.description ?: "") }
-    var cost by remember { mutableStateOf(workOrder.cost?.toString() ?: "") }
-    var selectedImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var showImageDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    
+    // Check camera permission
+    val hasCameraPermission = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.CAMERA
+    ) == PackageManager.PERMISSION_GRANTED
+    
+    // Create a temporary file for the camera
+    val tempImageFile = remember {
+        File(context.cacheDir, "temp_camera_image_${System.currentTimeMillis()}.jpg")
+    }
+    val tempImageUri = remember {
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            tempImageFile
+        )
+    }
+    
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            // Photo was taken successfully, add it to the completion images
+            onPhotoCaptured(tempImageUri)
+        }
+    }
+    
+    // Permission launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // Permission granted, launch camera
+            cameraLauncher.launch(tempImageUri)
+        }
+    }
+    
+    // Function to handle camera button click
+    val launchCamera = {
+        if (hasCameraPermission) {
+            cameraLauncher.launch(tempImageUri)
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -746,8 +790,8 @@ fun CompleteWorkDialog(
             Column {
                 // Description
                 OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
+                    value = uiState.completionDescription,
+                    onValueChange = onDescriptionChange,
                     label = { Text("Work Description") },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3,
@@ -758,8 +802,8 @@ fun CompleteWorkDialog(
                 
                 // Cost
                 OutlinedTextField(
-                    value = cost,
-                    onValueChange = { cost = it },
+                    value = uiState.completionCost,
+                    onValueChange = onCostChange,
                     label = { Text("Final Cost") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
@@ -785,21 +829,24 @@ fun CompleteWorkDialog(
                                 text = "Completion Images",
                                 style = MaterialTheme.typography.titleSmall
                             )
-                            TextButton(
-                                onClick = { showImageDialog = true }
+                            Button(
+                                onClick = launchCamera,
+                                modifier = Modifier.size(40.dp)
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = "Add Images", modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Add Images")
+                                Icon(
+                                    Icons.Default.Add, 
+                                    contentDescription = "Take Photo", 
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                         
-                        if (selectedImages.isNotEmpty()) {
+                        if (uiState.completionImages.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(8.dp))
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(selectedImages) { uri ->
+                                items(uiState.completionImages) { uri ->
                                     Box {
                                         Image(
                                             painter = rememberAsyncImagePainter(uri),
@@ -812,9 +859,7 @@ fun CompleteWorkDialog(
                                         
                                         // Remove button
                                         IconButton(
-                                            onClick = {
-                                                selectedImages = selectedImages.filter { it != uri }
-                                            },
+                                            onClick = { onRemoveImage(uri) },
                                             modifier = Modifier
                                                 .align(Alignment.TopEnd)
                                                 .size(20.dp)
@@ -832,36 +877,41 @@ fun CompleteWorkDialog(
                         }
                     }
                 }
+                
+                // Error message
+                if (uiState.error != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = uiState.error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    onComplete(
-                        description.ifEmpty { null },
-                        cost.toDoubleOrNull(),
-                        selectedImages.ifEmpty { null }
-                    )
-                }
+                onClick = onComplete,
+                enabled = !uiState.isCompleting
             ) {
+                if (uiState.isCompleting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
                 Text("Complete Work")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !uiState.isCompleting
+            ) {
                 Text("Cancel")
             }
         }
-    )
-    
-    // Image Selection Dialog
-    ImageSelectionDialog(
-        isOpen = showImageDialog,
-        onDismiss = { showImageDialog = false },
-        onImagesSelected = { images ->
-            selectedImages = images
-        },
-        maxImages = 3
     )
 }
 

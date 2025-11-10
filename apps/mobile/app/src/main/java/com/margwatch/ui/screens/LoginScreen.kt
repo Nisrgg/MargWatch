@@ -7,12 +7,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,11 +47,20 @@ fun LoginScreen(
 ) {
     val uiState by authViewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var isOnline by remember { mutableStateOf(true) }
+    var isEmailError by rememberSaveable { mutableStateOf(false) }
+    var emailErrorText by rememberSaveable { mutableStateOf("") }
+
+    // Email validation function
+    fun validateEmail(email: String): Boolean {
+        val emailRegex = "^[A-Za-z0-9+_.-]+@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})$".toRegex()
+        return email.isBlank() || emailRegex.matches(email)
+    }
 
     LaunchedEffect(uiState.showLoginSuccess) {
         if (uiState.showLoginSuccess) {
@@ -59,8 +71,11 @@ fun LoginScreen(
     }
 
     LaunchedEffect(uiState.error) {
-        uiState.error?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+        uiState.error?.let { errorMessage ->
+            snackbarHostState.showSnackbar(
+                message = errorMessage,
+                duration = SnackbarDuration.Long
+            )
             authViewModel.clearError()
         }
     }
@@ -167,7 +182,11 @@ fun LoginScreen(
                     // Email Field
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = { newEmail ->
+                            email = newEmail
+                            isEmailError = !validateEmail(newEmail) && newEmail.isNotBlank()
+                            emailErrorText = if (isEmailError) "Please enter a valid email address" else ""
+                        },
                         label = { Text("Email Address") },
                         leadingIcon = { 
                             Icon(
@@ -181,8 +200,13 @@ fun LoginScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        )
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            errorBorderColor = MaterialTheme.colorScheme.error
+                        ),
+                        isError = isEmailError,
+                        supportingText = if (isEmailError) {
+                            { Text(emailErrorText) }
+                        } else null
                     )
                     
                     // Password Field
@@ -219,12 +243,49 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     // Login Button
-                    GradientButton(
-                        text = if (uiState.isLoading) "Signing In..." else "Sign In",
+                    Button(
                         onClick = { authViewModel.login(email, password) },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank()
-                    )
+                        enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank() && !isEmailError,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.secondary
+                                        )
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 24.dp, vertical = 12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (uiState.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = if (uiState.isLoading) "Signing In..." else "Sign In",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
@@ -284,6 +345,12 @@ fun LoginScreen(
                 }
             }
         }
+        
+        // Snackbar Host
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 

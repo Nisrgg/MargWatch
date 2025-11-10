@@ -32,6 +32,10 @@ fun StatusChip(
         StatusType.ERROR -> ErrorColor to Color.White
         StatusType.INFO -> InfoColor to Color.White
         StatusType.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+        StatusType.COMPLAINT -> MaterialTheme.colorScheme.primary to Color.White
+        StatusType.WORK_ORDER -> MaterialTheme.colorScheme.secondary to Color.White
+        StatusType.NOTIFICATION -> MaterialTheme.colorScheme.tertiary to Color.White
+        StatusType.GENERAL -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
     
     Card(
@@ -49,9 +53,6 @@ fun StatusChip(
     }
 }
 
-enum class StatusType {
-    SUCCESS, WARNING, ERROR, INFO, NEUTRAL
-}
 
 // Gradient Button Component
 @Composable

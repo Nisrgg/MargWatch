@@ -58,7 +58,7 @@ class NotificationSSEService(
 
         android.util.Log.d("SSE", "Starting SSE connection...")
         android.util.Log.d("SSE", "BASE_URL: $BASE_URL")
-        android.util.Log.d("SSE", "Token: ${token.take(20)}...")
+        android.util.Log.d("SSE", "Token obtained successfully")
         job = CoroutineScope(Dispatchers.IO).launch {
             try {
                 client = OkHttpClient.Builder()

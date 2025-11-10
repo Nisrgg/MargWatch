@@ -29,7 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.margwatch.data.local.TokenManager
-import com.margwatch.data.model.UserRole
+import com.margwatch.shared.types.UserRole
 import com.margwatch.ui.components.*
 import com.margwatch.ui.theme.MargWatchTheme
 import com.margwatch.ui.theme.GradientStart

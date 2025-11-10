@@ -3,10 +3,12 @@ import { body, query, validationResult } from 'express-validator';
 import { prisma } from '../config/database';
 import { AuthenticatedRequest, ApiResponse, PaginationParams, FilterParams } from '../types';
 import { FirebaseNotificationService } from '../services/firebaseNotificationService';
-import { ComplaintStatus, IssueCategory } from '@prisma/client';
+import { WebSocketService } from '../services/websocketService';
+import { ComplaintStatus, IssueCategory } from '@margwatch/shared-types';
 import mlService from '../services/mlService';
 import geolocationService from '../services/geolocationService';
 import complaintGenerationService from '../services/complaintGenerationService';
+import { ControllerUtils } from '../utils/controllerUtils';
 
 export class ComplaintController {
   /**
@@ -31,11 +33,12 @@ export class ComplaintController {
       const lat = parseFloat(latitude);
       const lon = parseFloat(longitude);
 
-      // Validate coordinates
-      if (!geolocationService.validateCoordinates(lat, lon)) {
+      // Validate coordinates with service area check
+      const coordinateValidation = geolocationService.validateCoordinatesForService(lat, lon);
+      if (!coordinateValidation.isValid) {
         res.status(400).json({
           success: false,
-          message: 'Invalid coordinates provided',
+          message: coordinateValidation.error,
         });
         return;
       }
@@ -101,6 +104,22 @@ export class ComplaintController {
 
       // Store images as JSON array of URLs
       const imageUrlsJson = JSON.stringify(imageUrls);
+
+      // Check for duplicate complaints within 50 meters and 24 hours
+      const duplicateCheck = await ComplaintController.checkForDuplicateComplaint(
+        lat,
+        lon,
+        predictedCategory,
+        userId
+      );
+
+      if (duplicateCheck.isDuplicate) {
+        res.status(409).json({
+          success: false,
+          message: 'A similar issue has already been reported in this area recently.',
+        });
+        return;
+      }
 
       // Create complaint
       const complaint = await prisma.complaint.create({
@@ -180,6 +199,30 @@ export class ComplaintController {
         // Continue with response even if notifications fail
       }
 
+      // Send WebSocket notifications for real-time updates
+      try {
+        const wsService = WebSocketService.getInstance();
+        
+        // Broadcast complaint creation to all connected users
+        wsService.broadcast({
+          type: 'complaint_created',
+          data: {
+            complaintId: complaint.id,
+            title: complaint.title,
+            status: complaint.status,
+            category: complaint.category,
+            userId: complaint.userId,
+            createdAt: complaint.createdAt,
+          },
+          timestamp: new Date().toISOString(),
+        });
+        
+        console.log('📡 WebSocket notification sent for new complaint');
+      } catch (wsError) {
+        console.error('Failed to send WebSocket notification:', wsError);
+        // Continue with response even if WebSocket fails
+      }
+
       // Send response after notifications are sent
       const response: ApiResponse = {
         success: true,
@@ -204,9 +247,16 @@ export class ComplaintController {
   static async getUserComplaints(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.id;
-      const { page = 1, limit = 10, status, category } = req.query as any;
+      const { page, limit, status, category } = req.query as { 
+        page?: string; 
+        limit?: string; 
+        status?: string; 
+        category?: string; 
+      };
 
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      // Validate and sanitize pagination parameters
+      const { page: validatedPage, limit: validatedLimit, skip } = ControllerUtils.validatePaginationParams(page, limit);
+      
       const where: any = { userId };
 
       if (status) {
@@ -220,7 +270,7 @@ export class ComplaintController {
         prisma.complaint.findMany({
           where,
           skip,
-          take: parseInt(limit),
+          take: validatedLimit,
           orderBy: { createdAt: 'desc' },
           include: {
             workOrders: {
@@ -243,10 +293,14 @@ export class ComplaintController {
         prisma.complaint.count({ where }),
       ]);
 
-      // Parse image URLs for each complaint
+      // Parse image URLs and filter user data for each complaint
       const complaintsWithParsedImages = complaints.map(complaint => ({
         ...complaint,
         imageUrls: JSON.parse(complaint.imageUrl || '[]'),
+        workOrders: complaint.workOrders.map(workOrder => ({
+          ...workOrder,
+          worker: ControllerUtils.filterUserForResponse(workOrder.worker, req.user!.role),
+        })),
       }));
 
       const response: ApiResponse = {
@@ -255,10 +309,10 @@ export class ComplaintController {
         data: {
           complaints: complaintsWithParsedImages,
           pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: validatedPage,
+            limit: validatedLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit)),
+            pages: Math.ceil(total / validatedLimit),
           },
         },
       };
@@ -283,8 +337,16 @@ export class ComplaintController {
       const userId = req.user!.id;
       const userRole = req.user!.role;
 
-      const complaint = await prisma.complaint.findUnique({
-        where: { id },
+      // Build where clause based on user role and ownership
+      const whereClause: any = { id };
+      
+      // If user is not ADMIN, they can only access their own complaints
+      if (userRole !== 'ADMIN') {
+        whereClause.userId = userId;
+      }
+
+      const complaint = await prisma.complaint.findFirst({
+        where: whereClause,
         include: {
           user: {
             select: {
@@ -322,19 +384,15 @@ export class ComplaintController {
         return;
       }
 
-      // Check if user has access to this complaint
-      if (userRole === 'USER' && complaint.userId !== userId) {
-        res.status(403).json({
-          success: false,
-          message: 'Access denied',
-        });
-        return;
-      }
-
-      // Parse image URLs
+      // Parse image URLs and filter user data
       const complaintWithParsedImages = {
         ...complaint,
         imageUrls: JSON.parse(complaint.imageUrl || '[]'),
+        user: ControllerUtils.filterUserForResponse(complaint.user, userRole),
+        workOrders: complaint.workOrders.map(workOrder => ({
+          ...workOrder,
+          worker: ControllerUtils.filterUserForResponse(workOrder.worker, userRole),
+        })),
       };
 
       const response: ApiResponse = {
@@ -359,9 +417,18 @@ export class ComplaintController {
    */
   static async getAllComplaints(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { page = 1, limit = 10, status, category, userId, workerId } = req.query as any;
+      const { page, limit, status, category, userId, workerId } = req.query as { 
+        page?: string; 
+        limit?: string; 
+        status?: string; 
+        category?: string; 
+        userId?: string; 
+        workerId?: string; 
+      };
 
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      // Validate and sanitize pagination parameters
+      const { page: validatedPage, limit: validatedLimit, skip } = ControllerUtils.validatePaginationParams(page, limit);
+      
       const where: any = {};
 
       if (status) where.status = status;
@@ -377,7 +444,7 @@ export class ComplaintController {
         prisma.complaint.findMany({
           where,
           skip,
-          take: parseInt(limit),
+          take: validatedLimit,
           orderBy: { createdAt: 'desc' },
           include: {
             user: {
@@ -404,10 +471,15 @@ export class ComplaintController {
         prisma.complaint.count({ where }),
       ]);
 
-      // Parse image URLs for each complaint
+      // Parse image URLs and filter user data for each complaint
       const complaintsWithParsedImages = complaints.map(complaint => ({
         ...complaint,
         imageUrls: JSON.parse(complaint.imageUrl || '[]'),
+        user: ControllerUtils.filterUserForResponse(complaint.user, req.user!.role),
+        workOrders: complaint.workOrders.map(workOrder => ({
+          ...workOrder,
+          worker: ControllerUtils.filterUserForResponse(workOrder.worker, req.user!.role),
+        })),
       }));
 
       const response: ApiResponse = {
@@ -416,10 +488,10 @@ export class ComplaintController {
         data: {
           complaints: complaintsWithParsedImages,
           pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: validatedPage,
+            limit: validatedLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit)),
+            pages: Math.ceil(total / validatedLimit),
           },
         },
       };
@@ -497,7 +569,11 @@ export class ComplaintController {
    */
   static async getHeatMapData(req: Request, res: Response): Promise<void> {
     try {
-      const { category, dateFrom, dateTo } = req.query as any;
+      const { category, dateFrom, dateTo } = req.query as { 
+        category?: string; 
+        dateFrom?: string; 
+        dateTo?: string; 
+      };
 
       const where: any = {};
       if (category) where.category = category;
@@ -518,8 +594,8 @@ export class ComplaintController {
 
       const heatMapData = geolocationService.generateHeatMapData(
         complaints.map(c => ({
-          latitude: c.latitude,
-          longitude: c.longitude,
+          latitude: Number(c.latitude),
+          longitude: Number(c.longitude),
           category: c.category,
         }))
       );
@@ -538,6 +614,84 @@ export class ComplaintController {
         message: 'Failed to retrieve heat map data',
         error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined,
       });
+    }
+  }
+
+  /**
+   * Check for duplicate complaints within a radius and time frame
+   */
+  private static async checkForDuplicateComplaint(
+    latitude: number,
+    longitude: number,
+    category: string,
+    userId: string,
+    radiusMeters: number = 50,
+    timeHours: number = 24
+  ): Promise<{ isDuplicate: boolean; duplicateComplaint?: any }> {
+    try {
+      // Calculate bounding box for the radius (approximate)
+      // 1 degree latitude ≈ 111 km, so 50 meters ≈ 0.00045 degrees
+      const latDelta = radiusMeters / 111000; // Convert meters to degrees
+      const lonDelta = radiusMeters / (111000 * Math.cos(latitude * Math.PI / 180)); // Adjust for longitude
+
+      const timeThreshold = new Date();
+      timeThreshold.setHours(timeThreshold.getHours() - timeHours);
+
+      // Find complaints within the bounding box, same category, and time frame
+      const nearbyComplaints = await prisma.complaint.findMany({
+        where: {
+          category: category as any,
+          createdAt: {
+            gte: timeThreshold,
+          },
+          latitude: {
+            gte: latitude - latDelta,
+            lte: latitude + latDelta,
+          },
+          longitude: {
+            gte: longitude - lonDelta,
+            lte: longitude + lonDelta,
+          },
+          // Exclude complaints from the same user
+          userId: {
+            not: userId,
+          },
+        },
+        select: {
+          id: true,
+          latitude: true,
+          longitude: true,
+          category: true,
+          createdAt: true,
+          userId: true,
+        },
+      });
+
+      // Calculate exact distances and check if any are within the radius
+      for (const complaint of nearbyComplaints) {
+        const distance = geolocationService.calculateDistance(
+          latitude,
+          longitude,
+          Number(complaint.latitude),
+          Number(complaint.longitude)
+        );
+
+        // Convert distance from km to meters
+        const distanceMeters = distance * 1000;
+
+        if (distanceMeters <= radiusMeters) {
+          return {
+            isDuplicate: true,
+            duplicateComplaint: complaint,
+          };
+        }
+      }
+
+      return { isDuplicate: false };
+    } catch (error) {
+      console.error('Error checking for duplicate complaints:', error);
+      // If there's an error, allow the complaint to proceed
+      return { isDuplicate: false };
     }
   }
 }

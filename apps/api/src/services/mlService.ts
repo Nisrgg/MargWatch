@@ -2,7 +2,7 @@ import axios from 'axios';
 import fs from 'fs';
 import { config } from '../config';
 import { MLPredictionResponse } from '../types';
-import { IssueCategory } from '@prisma/client';
+import { IssueCategory } from '@margwatch/shared-types';
 
 export class MLService {
   private static instance: MLService;
@@ -31,23 +31,25 @@ export class MLService {
       // Download image from Cloudinary
       const imageBuffer = await this.downloadImageFromUrl(imageUrl);
       
-      // Convert to base64
-      const base64Image = imageBuffer.toString('base64');
+      // Use FormData for file upload (more efficient than base64)
+      const FormData = require('form-data');
+      const formData = new FormData();
+      formData.append('file', imageBuffer, {
+        filename: 'image.jpg',
+        contentType: 'image/jpeg'
+      });
       
-      // Make request to ML model
-      const response = await axios.post(this.modelUrl, {
-        image: base64Image,
-        model_type: 'road_issue_classification'
-      }, {
+      // Make request to ML model using file upload
+      const response = await axios.post(this.modelUrl.replace('/predict', '/predict'), formData, {
         timeout: 30000, // 30 seconds timeout
         headers: {
-          'Content-Type': 'application/json',
+          ...formData.getHeaders(),
         },
       });
 
       const prediction = response.data;
 
-      if (!prediction.success) {
+      if (!prediction.success && !prediction.category) {
         throw new Error(prediction.error || 'ML prediction failed');
       }
 
@@ -60,7 +62,7 @@ export class MLService {
       return {
         category,
         confidence,
-        modelVersion: prediction.model_version || 'unknown',
+        modelVersion: prediction.model_version || 'resnet18_v1.0',
         processingTime: prediction.processing_time || 0,
         imageSize: prediction.image_size || null,
       };
@@ -110,22 +112,26 @@ export class MLService {
 
       // Read image file
       const imageBuffer = fs.readFileSync(imagePath);
-      const base64Image = imageBuffer.toString('base64');
+      
+      // Use FormData for file upload (more efficient than base64)
+      const FormData = require('form-data');
+      const formData = new FormData();
+      formData.append('file', imageBuffer, {
+        filename: 'image.jpg',
+        contentType: 'image/jpeg'
+      });
 
-      // Make request to ML model
-      const response = await axios.post(this.modelUrl, {
-        image: base64Image,
-        model_type: 'road_issue_classification'
-      }, {
+      // Make request to ML model using file upload
+      const response = await axios.post(this.modelUrl.replace('/predict', '/predict'), formData, {
         timeout: 30000, // 30 seconds timeout
         headers: {
-          'Content-Type': 'application/json',
+          ...formData.getHeaders(),
         },
       });
 
       const prediction = response.data;
 
-      if (!prediction.success) {
+      if (!prediction.success && !prediction.category) {
         throw new Error(prediction.error || 'ML prediction failed');
       }
 
@@ -136,7 +142,7 @@ export class MLService {
       return {
         category,
         confidence,
-        modelVersion: prediction.model_version || 'unknown',
+        modelVersion: prediction.model_version || 'resnet18_v1.0',
         processingTime: prediction.processing_time || 0,
         imageSize: prediction.image_size || null,
       };

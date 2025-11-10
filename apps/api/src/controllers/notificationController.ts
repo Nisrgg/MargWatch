@@ -9,9 +9,13 @@ export class NotificationController {
   static async getUserNotifications(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.id;
-      const { page = 1, limit = 20, unreadOnly = false } = req.query as any;
+      const { page = 1, limit = 20, unreadOnly = false } = req.query as { 
+        page?: string; 
+        limit?: string; 
+        unreadOnly?: string; 
+      };
 
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const skip = (parseInt(String(page)) - 1) * parseInt(String(limit));
       const where: any = { userId };
 
       if (unreadOnly === 'true') {
@@ -22,7 +26,7 @@ export class NotificationController {
         prisma.notification.findMany({
           where,
           skip,
-          take: parseInt(limit),
+          take: parseInt(String(limit)),
           orderBy: { createdAt: 'desc' },
         }),
         prisma.notification.count({ where }),
@@ -34,10 +38,10 @@ export class NotificationController {
         data: {
           notifications,
           pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            total,
-            pages: Math.ceil(total / parseInt(limit)),
+        page: parseInt(String(page)),
+        limit: parseInt(String(limit)),
+        total,
+        pages: Math.ceil(total / parseInt(String(limit))),
           },
         },
       };

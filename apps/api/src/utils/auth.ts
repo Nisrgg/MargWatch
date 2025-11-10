@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@margwatch/shared-types';
 
 export class AuthUtils {
   static async hashPassword(password: string): Promise<string> {

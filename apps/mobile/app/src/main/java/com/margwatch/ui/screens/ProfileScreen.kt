@@ -24,8 +24,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.margwatch.data.model.User
-import com.margwatch.data.model.UserRole
+import com.margwatch.shared.types.User
+import com.margwatch.shared.types.UserRole
 import com.margwatch.ui.theme.MargWatchTheme
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat

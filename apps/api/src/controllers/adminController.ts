@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { prisma } from '../config/database';
 import { AuthenticatedRequest, ApiResponse } from '../types';
-import { UserRole, ComplaintStatus } from '@prisma/client';
+import { UserRole, ComplaintStatus, WorkOrderStatus } from '@margwatch/shared-types';
 
 export class AdminController {
   /**
@@ -26,7 +26,7 @@ export class AdminController {
         prisma.complaint.count({ where: { status: ComplaintStatus.COMPLETED } }),
         prisma.user.count({ where: { role: UserRole.USER } }),
         prisma.user.count({ where: { role: UserRole.WORKER } }),
-        prisma.workOrder.count({ where: { status: ComplaintStatus.PROCESSING } }),
+        prisma.workOrder.count({ where: { status: WorkOrderStatus.IN_PROGRESS } }),
         prisma.complaint.findMany({
           take: 5,
           orderBy: { createdAt: 'desc' },
@@ -80,9 +80,14 @@ export class AdminController {
    */
   static async getAllUsers(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { page = 1, limit = 10, role, search } = req.query as any;
+      const { page = 1, limit = 10, role, search } = req.query as { 
+        page?: string; 
+        limit?: string; 
+        role?: string; 
+        search?: string; 
+      };
 
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const skip = (parseInt(String(page)) - 1) * parseInt(String(limit));
       const where: any = {};
 
       if (role) {
@@ -101,7 +106,7 @@ export class AdminController {
         prisma.user.findMany({
           where,
           skip,
-          take: parseInt(limit),
+          take: parseInt(String(limit)),
           orderBy: { createdAt: 'desc' },
           select: {
             id: true,
@@ -129,10 +134,10 @@ export class AdminController {
         data: {
           users,
           pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            total,
-            pages: Math.ceil(total / parseInt(limit)),
+        page: parseInt(String(page)),
+        limit: parseInt(String(limit)),
+        total,
+        pages: Math.ceil(total / parseInt(String(limit))),
           },
         },
       };
@@ -282,11 +287,77 @@ export class AdminController {
 
   /**
    * Get complaint analytics
+   * 
+   * @route GET /api/admin/analytics
+   * @access Admin
+   * @description Retrieves comprehensive analytics data for complaints including trends, categories, worker performance, and heat map data
+   * 
+   * @query {number} [period=30] - Number of days to analyze (default: 30)
+   * 
+   * @returns {Object} Analytics data object containing:
+   *   - complaintsOverTime: Array of daily complaint counts
+   *   - complaintsByCategory: Array of complaint counts by category
+   *   - complaintsByStatus: Array of complaint counts by status
+   *   - workerPerformance: Array of worker performance metrics
+   *   - heatMapData: Array of complaint locations for mapping
+   *   - avgResolutionTime: Average time to resolve complaints (in days)
+   *   - period: Analysis period in days
+   *   - totalComplaints: Total complaints in period
+   *   - completedComplaints: Total completed complaints in period
+   * 
+   * @example
+   * GET /api/admin/analytics?period=7
+   * 
+   * Response:
+   * {
+   *   "success": true,
+   *   "message": "Complaint analytics retrieved successfully",
+   *   "data": {
+   *     "analytics": {
+   *       "complaintsOverTime": [
+   *         { "date": "2024-01-01", "count": 5 },
+   *         { "date": "2024-01-02", "count": 3 }
+   *       ],
+   *       "complaintsByCategory": [
+   *         { "category": "POTHOLE", "count": 15 },
+   *         { "category": "ROAD_INSTABILITY", "count": 8 }
+   *       ],
+   *       "complaintsByStatus": [
+   *         { "status": "COMPLETED", "count": 20 },
+   *         { "status": "PROCESSING", "count": 5 }
+   *       ],
+   *       "workerPerformance": [
+   *         {
+   *           "id": "worker_id",
+   *           "name": "John Doe",
+   *           "email": "john@example.com",
+   *           "totalOrders": 10,
+   *           "completedOrders": 8,
+   *           "completionRate": 80,
+   *           "avgCompletionTime": 2.5,
+   *           "totalCost": 1500.00
+   *         }
+   *       ],
+   *       "heatMapData": [
+   *         {
+   *           "lat": 40.7128,
+   *           "lng": -74.0060,
+   *           "category": "POTHOLE",
+   *           "status": "COMPLETED"
+   *         }
+   *       ],
+   *       "avgResolutionTime": 3.2,
+   *       "period": 30,
+   *       "totalComplaints": 25,
+   *       "completedComplaints": 20
+   *     }
+   *   }
+   * }
    */
   static async getComplaintAnalytics(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       console.log('Getting complaint analytics...');
-      const { period = '30' } = req.query as any;
+      const { period = '30' } = req.query as { period?: string };
       const days = parseInt(period);
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
@@ -420,7 +491,7 @@ export class AdminController {
       const workerPerformance = workers.map(worker => {
         const totalOrders = worker.workOrders.length;
         const completedOrders = worker.workOrders.filter(wo => wo.status === 'COMPLETED').length;
-        const totalCost = worker.workOrders.reduce((sum, wo) => sum + (wo.cost || 0), 0);
+        const totalCost = worker.workOrders.reduce((sum, wo) => sum + Number(wo.cost || 0), 0);
         const avgCompletionTime = completedOrders > 0 
           ? worker.workOrders
               .filter(wo => wo.completedAt)
@@ -511,7 +582,7 @@ export class AdminController {
    */
   static async getWorkerPerformance(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { period = '30' } = req.query as any;
+      const { period = '30' } = req.query as { period?: string };
       const days = parseInt(period);
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
@@ -544,7 +615,7 @@ export class AdminController {
       const performance = workers.map(worker => {
         const totalOrders = worker.workOrders.length;
         const completedOrders = worker.workOrders.filter(wo => wo.status === ComplaintStatus.COMPLETED).length;
-        const totalCost = worker.workOrders.reduce((sum, wo) => sum + (wo.cost || 0), 0);
+        const totalCost = worker.workOrders.reduce((sum, wo) => sum + Number(wo.cost || 0), 0);
         const avgCompletionTime = completedOrders > 0 
           ? worker.workOrders
               .filter(wo => wo.completedAt)

@@ -19,7 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.margwatch.data.local.TokenManager
-import com.margwatch.data.model.Notification
+import com.margwatch.shared.types.Notification
 import com.margwatch.services.NotificationSSEService
 import com.margwatch.ui.theme.MargWatchTheme
 import java.text.SimpleDateFormat

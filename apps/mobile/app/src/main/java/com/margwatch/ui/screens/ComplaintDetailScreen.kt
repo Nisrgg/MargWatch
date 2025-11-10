@@ -25,9 +25,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.margwatch.data.local.TokenManager
-import com.margwatch.data.model.Complaint
+import com.margwatch.shared.types.Complaint
 import com.margwatch.ui.components.StatusChip
 import com.margwatch.ui.components.StatusType
+import com.margwatch.utils.getCategoryIcon
+import com.margwatch.utils.formatCategoryName
+import com.margwatch.utils.getStatusType
 import com.margwatch.ui.theme.GradientStart
 import com.margwatch.ui.theme.GradientEnd
 import java.text.SimpleDateFormat
@@ -137,8 +140,8 @@ fun ComplaintDetailContent(
                         modifier = Modifier.weight(1f)
                     )
                     StatusChip(
-                        text = complaint.status,
-                        status = getStatusType(complaint.status)
+                        status = complaint.status.name,
+                        type = StatusType.COMPLAINT
                     )
                 }
                 
@@ -192,14 +195,14 @@ fun CategoryAndMLInfo(complaint: Complaint) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = getCategoryIcon(complaint.category),
+                    imageVector = getCategoryIcon(complaint.category.name),
                     contentDescription = "Category",
                     modifier = Modifier.size(20.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Category: ${formatCategoryName(complaint.category)}",
+                    text = "Category: ${formatCategoryName(complaint.category.name)}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium
                 )
@@ -220,7 +223,7 @@ fun CategoryAndMLInfo(complaint: Complaint) {
                         )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "AI Detected: ${formatCategoryName(complaint.mlCategory)}",
+                        text = "AI Detected: ${formatCategoryName(complaint.mlCategory.name)}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium
                     )
@@ -472,32 +475,12 @@ private fun getCategoryIcon(category: String) = when (category.uppercase()) {
     else -> Icons.Default.Info
 }
 
-private fun formatCategoryName(category: String) = when (category.uppercase()) {
-    "POTHOLE" -> "Pothole"
-    "ROAD_INSTABILITY" -> "Road Instability"
-    "STREETLIGHT_DAMAGE" -> "Streetlight Damage"
-    "TREE_DAMAGE" -> "Tree Damage"
-    "OTHER" -> "Other"
-    else -> category.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }
-}
-
 private fun formatDate(dateString: String): String {
     return try {
         val date = Date(dateString.toLongOrNull() ?: System.currentTimeMillis())
         SimpleDateFormat("MMM dd, yyyy 'at' HH:mm", Locale.getDefault()).format(date)
     } catch (e: Exception) {
         "Unknown date"
-    }
-}
-
-private fun getStatusType(status: String): StatusType {
-    return when (status.uppercase()) {
-        "REGISTERED" -> StatusType.INFO
-        "APPROVED" -> StatusType.SUCCESS
-        "PROCESSING" -> StatusType.WARNING
-        "COMPLETED" -> StatusType.SUCCESS
-        "REJECTED" -> StatusType.ERROR
-        else -> StatusType.INFO
     }
 }
 

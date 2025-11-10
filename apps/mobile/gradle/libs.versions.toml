@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.0"
-kotlin = "2.0.21"
+kotlin = "2.2.20"
 coreKtx = "1.17.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -18,7 +18,7 @@ datastorePreferences = "1.0.0"
 playServicesLocation = "21.0.1"
 playServicesMaps = "18.2.0"
 playServicesBase = "18.2.0"
-mapsCompose = "4.3.0"
+mapsCompose = "6.12.1"
 cameraX = "1.3.1"
 room = "2.6.1"
 

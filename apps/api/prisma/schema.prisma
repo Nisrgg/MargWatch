@@ -20,6 +20,15 @@ enum ComplaintStatus {
   REGISTERED
   APPROVED
   PROCESSING
+  PENDING_REVIEW
+  COMPLETED
+  REJECTED
+}
+
+enum WorkOrderStatus {
+  ASSIGNED
+  IN_PROGRESS
+  PENDING_REVIEW
   COMPLETED
   REJECTED
 }
@@ -58,8 +67,8 @@ model Complaint {
   description   String
   category      IssueCategory
   status        ComplaintStatus @default(REGISTERED)
-  latitude      Float
-  longitude     Float
+  latitude      Decimal         @db.Decimal(10, 8)
+  longitude     Decimal         @db.Decimal(11, 8)
   address       String?
   imageUrl      String?        // JSON array of image URLs from Cloudinary
   imageCount    Int?           @default(1) // Number of images uploaded
@@ -67,6 +76,10 @@ model Complaint {
   mlConfidence  Float?         // ML confidence score
   mlModelVersion String?       // ML model version used
   mlProcessingTime Float?      // ML processing time in seconds
+  
+  // New fields from audit
+  rejectionReason String?      // Reason for rejection
+  severity        String       @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
   
   // User who reported the complaint
   userId      String
@@ -95,7 +108,7 @@ model WorkOrder {
   workerId    String
   worker      User           @relation(fields: [workerId], references: [id])
   
-  status      ComplaintStatus @default(APPROVED)
+  status      WorkOrderStatus @default(ASSIGNED)
   priority    Int            @default(1) // 1 = Low, 2 = Medium, 3 = High
   
   assignedAt  DateTime       @default(now())
@@ -104,7 +117,13 @@ model WorkOrder {
   
   workDescription String?
   materialsUsed   String?
-  cost            Float?
+  cost            Decimal?    @db.Decimal(10, 2)
+  
+  // New fields from audit
+  estimatedDuration Int?      // In minutes
+  actualDuration    Int?      // In minutes
+  qualityScore      Int?      @db.SmallInt // 1-5 rating
+  reworkCount        Int      @default(0)
   
   // Admin approval fields
   adminApprovalStatus String? // 'PENDING', 'APPROVED', 'REJECTED'
@@ -140,7 +159,7 @@ model WorkOrderUpdate {
   workOrderId String
   workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   
-  status      ComplaintStatus
+  status      WorkOrderStatus
   description String?
   imageUrl    String?
   progress    Int?     // 0-100 percentage

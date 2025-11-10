@@ -16,11 +16,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import com.margwatch.data.local.TokenManager
-import com.margwatch.data.model.HeatMapPoint
+import com.margwatch.shared.types.HeatMapData
 import com.margwatch.data.repository.MargWatchRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -193,6 +194,10 @@ fun HeatMapScreen(
                             8f
                         )
                     ),
+                    googleMapOptionsFactory = {
+                        GoogleMapOptions().mapId("90beec7215430eb1aad280ba")
+                    },
+                    properties = MapProperties(),
                     onMapLoaded = {
                         android.util.Log.d("HeatMapScreen", "Map loaded with ${uiState.heatMapPoints.size} points")
                     }
@@ -200,7 +205,7 @@ fun HeatMapScreen(
                     // Individual markers for complaint locations
                     uiState.heatMapPoints.take(100).forEach { point ->
                         Marker(
-                            state = MarkerState(position = LatLng(point.latitude, point.longitude)),
+                            state = MarkerState(position = LatLng(point.latitude.toDouble(), point.longitude.toDouble())),
                             title = "Complaint Area",
                             snippet = "Category: ${point.category}"
                         )
@@ -373,6 +378,6 @@ class HeatMapViewModel : androidx.lifecycle.ViewModel() {
 // UI State for HeatMap
 data class HeatMapUiState(
     val isLoading: Boolean = false,
-    val heatMapPoints: List<HeatMapPoint> = emptyList(),
+    val heatMapPoints: List<HeatMapData> = emptyList(),
     val error: String? = null
 )

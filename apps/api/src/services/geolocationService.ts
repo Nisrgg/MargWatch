@@ -101,6 +101,22 @@ export class GeolocationService {
   }
 
   /**
+   * Check for duplicate complaints within a radius and time frame
+   * Returns true if a potential duplicate is found
+   */
+  async checkForDuplicateComplaint(
+    latitude: number,
+    longitude: number,
+    category: string,
+    radiusMeters: number = 50,
+    timeHours: number = 24
+  ): Promise<{ isDuplicate: boolean; duplicateComplaint?: any }> {
+    // This will be implemented in the controller using Prisma
+    // For now, return false to indicate no duplicate found
+    return { isDuplicate: false };
+  }
+
+  /**
    * Convert degrees to radians
    */
   private toRadians(degrees: number): number {
@@ -119,6 +135,53 @@ export class GeolocationService {
       !isNaN(latitude) &&
       !isNaN(longitude)
     );
+  }
+
+  /**
+   * Validate coordinates are within service area (Gujarat, India)
+   * Gujarat bounding box: 20.1°N to 24.7°N, 68.1°E to 74.4°E
+   */
+  validateServiceArea(latitude: number, longitude: number): boolean {
+    // Gujarat, India bounding box
+    const GUJARAT_BOUNDS = {
+      minLat: 20.1,
+      maxLat: 24.7,
+      minLon: 68.1,
+      maxLon: 74.4,
+    };
+
+    return (
+      latitude >= GUJARAT_BOUNDS.minLat &&
+      latitude <= GUJARAT_BOUNDS.maxLat &&
+      longitude >= GUJARAT_BOUNDS.minLon &&
+      longitude <= GUJARAT_BOUNDS.maxLon
+    );
+  }
+
+  /**
+   * Comprehensive coordinate validation including service area check
+   */
+  validateCoordinatesForService(latitude: number, longitude: number): { 
+    isValid: boolean; 
+    error?: string 
+  } {
+    // Basic coordinate validation
+    if (!this.validateCoordinates(latitude, longitude)) {
+      return {
+        isValid: false,
+        error: 'Invalid coordinates provided. Latitude must be between -90 and 90, longitude between -180 and 180.'
+      };
+    }
+
+    // Service area validation
+    if (!this.validateServiceArea(latitude, longitude)) {
+      return {
+        isValid: false,
+        error: 'Coordinates are outside the service area. Please provide coordinates within Gujarat, India.'
+      };
+    }
+
+    return { isValid: true };
   }
 
   /**

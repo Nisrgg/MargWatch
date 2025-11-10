@@ -92,6 +92,69 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+### Get User Profile
+```http
+GET /api/auth/profile
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "user_id",
+      "email": "user@example.com",
+      "firstName": "John",
+      "lastName": "Doe",
+      "phone": "+1234567890",
+      "role": "USER",
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  }
+}
+```
+
+### Update User Profile
+```http
+PUT /api/auth/profile
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "phone": "+1234567890"
+}
+```
+
+### Change Password
+```http
+PUT /api/auth/change-password
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
+
+{
+  "currentPassword": "old_password",
+  "newPassword": "new_password"
+}
+```
+
+### Test Notification (Public)
+```http
+POST /api/auth/test-notification
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "title": "Test Notification",
+  "message": "This is a test notification"
+}
+```
+
 ---
 
 ## 📝 Complaint Endpoints
@@ -124,8 +187,13 @@ Authorization: Bearer <jwt_token>
         "longitude": -74.0060,
         "address": "123 Main St, New York, NY",
         "imageUrl": "https://cloudinary.com/image.jpg",
+        "imageCount": 3,
         "mlCategory": "POTHOLE",
         "mlConfidence": 0.95,
+        "mlModelVersion": "v1.0",
+        "mlProcessingTime": 0.234,
+        "severity": "MEDIUM",
+        "rejectionReason": null,
         "createdAt": "2024-01-01T00:00:00Z",
         "user": {
           "firstName": "John",
@@ -176,8 +244,12 @@ Content-Type: multipart/form-data
       "longitude": -74.0060,
       "address": "123 Main St, New York, NY",
       "imageUrl": "https://cloudinary.com/image.jpg",
+      "imageCount": 3,
       "mlCategory": "POTHOLE",
       "mlConfidence": 0.95,
+      "mlModelVersion": "v1.0",
+      "mlProcessingTime": 0.234,
+      "severity": "MEDIUM",
       "createdAt": "2024-01-01T00:00:00Z"
     }
   }
@@ -205,13 +277,18 @@ Authorization: Bearer <jwt_token>
       "longitude": -74.0060,
       "address": "123 Main St, New York, NY",
       "imageUrl": "https://cloudinary.com/image.jpg",
+      "imageCount": 3,
       "mlCategory": "POTHOLE",
       "mlConfidence": 0.95,
+      "mlModelVersion": "v1.0",
+      "mlProcessingTime": 0.234,
+      "severity": "MEDIUM",
+      "rejectionReason": null,
       "createdAt": "2024-01-01T00:00:00Z",
       "workOrders": [
         {
           "id": "work_order_id",
-          "status": "APPROVED",
+          "status": "ASSIGNED",
           "priority": 2,
           "assignedAt": "2024-01-01T00:00:00Z",
           "worker": {
@@ -249,42 +326,156 @@ Content-Type: application/json
 
 ## 👷 Work Order Endpoints
 
-### Get Work Orders
+### Get All Work Orders (Admin)
 ```http
-GET /api/work-orders
-Authorization: Bearer <jwt_token>
+GET /api/work-orders/all
+Authorization: Bearer <admin_jwt_token>
+```
+
+### Get Worker's Work Orders
+```http
+GET /api/work-orders/my-orders
+Authorization: Bearer <worker_jwt_token>
 ```
 
 **Query Parameters:**
-- `workerId` (optional): Filter by worker ID
 - `status` (optional): Filter by status
 - `priority` (optional): Filter by priority
 
-### Create Work Order
+### Create Work Order (Admin)
 ```http
 POST /api/work-orders
-Authorization: Bearer <jwt_token>
+Authorization: Bearer <admin_jwt_token>
 Content-Type: application/json
 
 {
   "complaintId": "complaint_id",
   "workerId": "worker_id",
-  "priority": 2,
-  "workDescription": "Fill pothole with asphalt"
+  "priority": 2
 }
 ```
 
-### Update Work Order
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Work order created successfully",
+  "data": {
+    "workOrder": {
+      "id": "work_order_id",
+      "complaintId": "complaint_id",
+      "workerId": "worker_id",
+      "status": "ASSIGNED",
+      "priority": 2,
+      "assignedAt": "2024-01-01T00:00:00Z",
+      "estimatedDuration": null,
+      "actualDuration": null,
+      "qualityScore": null,
+      "reworkCount": 0,
+      "adminApprovalStatus": null,
+      "createdAt": "2024-01-01T00:00:00Z"
+    }
+  }
+}
+```
+
+### Get Work Order Details
 ```http
-PUT /api/work-orders/:id
+GET /api/work-orders/:id/details
 Authorization: Bearer <jwt_token>
+```
+
+### Update Work Order Status (Worker)
+```http
+PUT /api/work-orders/:id/status
+Authorization: Bearer <worker_jwt_token>
+Content-Type: multipart/form-data
+
+{
+  "status": "IN_PROGRESS",
+  "description": "Started work on the pothole",
+  "image": [file]
+}
+```
+
+### Complete Work Order (Worker)
+```http
+PUT /api/work-orders/:id/complete
+Authorization: Bearer <worker_jwt_token>
+Content-Type: multipart/form-data
+
+{
+  "workDescription": "Pothole filled successfully",
+  "materialsUsed": "Asphalt, gravel",
+  "cost": 150.00,
+  "images": [file1, file2]
+}
+```
+
+### Get Pending Approvals (Admin)
+```http
+GET /api/work-orders/pending-approvals
+Authorization: Bearer <admin_jwt_token>
+```
+
+### Approve Work Order (Admin)
+```http
+POST /api/work-orders/approve
+Authorization: Bearer <admin_jwt_token>
 Content-Type: application/json
 
 {
-  "status": "COMPLETED",
-  "workDescription": "Pothole filled successfully",
-  "materialsUsed": "Asphalt, gravel",
-  "cost": 150.00
+  "workOrderId": "work_order_id",
+  "approvalStatus": "APPROVED"
+}
+```
+
+---
+
+## 📊 Admin Approval Endpoints
+
+### Get Pending Complaints
+```http
+GET /api/admin-approval/pending-complaints
+Authorization: Bearer <admin_jwt_token>
+```
+
+### Get Available Workers
+```http
+GET /api/admin-approval/available-workers
+Authorization: Bearer <admin_jwt_token>
+```
+
+### Approve/Reject Complaint
+```http
+PUT /api/admin-approval/complaints/:id/approve-reject
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+
+{
+  "action": "approve",
+  "priority": 2,
+  "notes": "Approved for immediate action"
+}
+```
+
+**Reject Complaint:**
+```json
+{
+  "action": "reject",
+  "reason": "Duplicate complaint"
+}
+```
+
+### Final Approve Work Order
+```http
+PUT /api/admin-approval/work-orders/:workOrderId/final-approve
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+
+{
+  "approvalStatus": "APPROVED",
+  "notes": "Work completed satisfactorily"
 }
 ```
 
@@ -333,12 +524,12 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "data": {
-    "category": "POTHOLE",
-    "confidence": 0.95,
-    "model_version": "v1.0",
-    "processing_time": 0.234
-  }
+  "category": "POTHOLE",
+  "confidence": 0.95,
+  "model_version": "mock_v1.0",
+  "processing_time": 0.234,
+  "image_size": [1920, 1080],
+  "timestamp": "2024-01-01T00:00:00Z"
 }
 ```
 
@@ -353,9 +544,47 @@ Content-Type: application/json
 }
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "predictions": [
+    {
+      "category": "POTHOLE",
+      "confidence": 0.95,
+      "image_index": 0
+    },
+    {
+      "category": "ROAD_INSTABILITY",
+      "confidence": 0.87,
+      "image_index": 1
+    }
+  ],
+  "total_images": 2,
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+```
+
 ### ML Service Health Check
 ```http
 GET /api/ml/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "message": "ML Service is running",
+  "model_status": "loaded",
+  "model_version": "mock_v1.0",
+  "categories": ["POTHOLE", "ROAD_INSTABILITY", "STREETLIGHT_DAMAGE", "TREE_DAMAGE", "OTHER"],
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+```
+
+### Get Model Information
+```http
+GET /api/ml/model/info
 ```
 
 ---
@@ -414,39 +643,6 @@ Authorization: Bearer <admin_jwt_token>
 
 ---
 
-## 📊 Admin Approval Endpoints
-
-### Get Pending Approvals
-```http
-GET /api/admin-approval/pending
-Authorization: Bearer <admin_jwt_token>
-```
-
-### Approve Complaint
-```http
-POST /api/admin-approval/:id/approve
-Authorization: Bearer <admin_jwt_token>
-Content-Type: application/json
-
-{
-  "priority": 2,
-  "notes": "Approved for immediate action"
-}
-```
-
-### Reject Complaint
-```http
-POST /api/admin-approval/:id/reject
-Authorization: Bearer <admin_jwt_token>
-Content-Type: application/json
-
-{
-  "reason": "Duplicate complaint"
-}
-```
-
----
-
 ## 🔍 Health Check Endpoints
 
 ### Backend Health Check
@@ -501,16 +697,18 @@ interface Complaint {
   title: string;
   description: string;
   category: 'POTHOLE' | 'ROAD_INSTABILITY' | 'STREETLIGHT_DAMAGE' | 'TREE_DAMAGE' | 'OTHER';
-  status: 'REGISTERED' | 'APPROVED' | 'PROCESSING' | 'COMPLETED' | 'REJECTED';
-  latitude: number;
-  longitude: number;
+  status: 'REGISTERED' | 'APPROVED' | 'PROCESSING' | 'PENDING_REVIEW' | 'COMPLETED' | 'REJECTED';
+  latitude: number; // Decimal precision
+  longitude: number; // Decimal precision
   address?: string;
-  imageUrl?: string;
+  imageUrl?: string; // JSON string of image URLs
   imageCount?: number;
   mlCategory?: string;
   mlConfidence?: number;
   mlModelVersion?: string;
   mlProcessingTime?: number;
+  rejectionReason?: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   userId: string;
   approvedBy?: string;
   approvedAt?: Date;
@@ -525,16 +723,37 @@ interface WorkOrder {
   id: string;
   complaintId: string;
   workerId: string;
-  status: 'APPROVED' | 'PROCESSING' | 'COMPLETED';
+  status: 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING_REVIEW' | 'COMPLETED' | 'REJECTED';
   priority: number; // 1 = Low, 2 = Medium, 3 = High
   assignedAt: Date;
   startedAt?: Date;
   completedAt?: Date;
   workDescription?: string;
   materialsUsed?: string;
-  cost?: number;
+  cost?: number; // Decimal precision
+  estimatedDuration?: number; // In minutes
+  actualDuration?: number; // In minutes
+  qualityScore?: number; // 1-5 rating
+  reworkCount: number;
+  adminApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  adminApprovedBy?: string;
+  adminApprovedAt?: Date;
+  adminRejectionReason?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+```
+
+### Notification Model
+```typescript
+interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'complaint_status' | 'work_update' | 'general';
+  isRead: boolean;
+  createdAt: Date;
 }
 ```
 
@@ -561,6 +780,7 @@ interface WorkOrder {
 - `FILE_UPLOAD_ERROR`: File upload failed
 - `ML_SERVICE_ERROR`: ML service unavailable
 - `DATABASE_ERROR`: Database operation failed
+- `STATE_TRANSITION_ERROR`: Invalid state machine transition
 
 ### HTTP Status Codes
 - `200`: Success

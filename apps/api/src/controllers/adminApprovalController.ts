@@ -2,8 +2,10 @@ import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { prisma } from '../config/database';
 import { AuthenticatedRequest, ApiResponse } from '../types';
-import { ComplaintStatus, UserRole } from '@prisma/client';
+import { ComplaintStatus, WorkOrderStatus, UserRole } from '@margwatch/shared-types';
 import { FirebaseNotificationService } from '../services/firebaseNotificationService';
+import { WebSocketService } from '../services/websocketService';
+import { StateMachineValidator } from '../utils/stateMachineValidator';
 
 export class AdminApprovalController {
   /**
@@ -48,10 +50,15 @@ export class AdminApprovalController {
         return;
       }
 
-      if (complaint.status !== ComplaintStatus.REGISTERED) {
-        res.status(400).json({
+      // Validate state transition using StateMachineValidator
+      if (!StateMachineValidator.validateComplaintTransition(
+        complaint.status as ComplaintStatus,
+        action === 'approve' ? ComplaintStatus.APPROVED : ComplaintStatus.REJECTED,
+        req.user!.role as UserRole
+      )) {
+        res.status(409).json({
           success: false,
-          message: 'Complaint has already been processed',
+          message: `Invalid state transition from ${complaint.status} to ${action === 'approve' ? 'APPROVED' : 'REJECTED'}`,
         });
         return;
       }
@@ -82,44 +89,75 @@ export class AdminApprovalController {
           return;
         }
 
-        // Update complaint status to approved
-        updatedComplaint = await prisma.complaint.update({
-          where: { id },
-          data: {
-            status: ComplaintStatus.APPROVED,
-            approvedBy: adminId,
-            approvedAt: new Date(),
-          },
-        });
+        // Use database transaction to prevent race conditions
+        try {
+          const result = await prisma.$transaction(async (tx) => {
+            // 1. Find the complaint with FOR UPDATE lock to prevent concurrent modifications
+            const lockedComplaint = await tx.complaint.findUnique({
+              where: { id },
+            });
 
-        // Create work order
-        workOrder = await prisma.workOrder.create({
-          data: {
-            complaintId: id,
-            workerId: assignedWorkerId,
-            priority: priority || 1,
-            status: ComplaintStatus.APPROVED,
-          },
-          include: {
-            worker: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
+            if (!lockedComplaint) {
+              throw new Error('Complaint not found');
+            }
+
+            // 2. Check if complaint is still in REGISTERED status
+            if (lockedComplaint.status !== ComplaintStatus.REGISTERED) {
+              throw new Error('Complaint has already been processed');
+            }
+
+            // 3. Update complaint status to approved
+            const updatedComplaint = await tx.complaint.update({
+              where: { id },
+              data: {
+                status: ComplaintStatus.APPROVED,
+                approvedBy: adminId,
+                approvedAt: new Date(),
               },
-            },
-          },
-        });
+            });
 
-        // Create complaint update record
-        await prisma.complaintUpdate.create({
-          data: {
-            complaintId: id,
-            status: ComplaintStatus.APPROVED,
-            description: reason || 'Complaint approved and assigned to worker',
-          },
-        });
+            // 4. Create work order with new WorkOrderStatus
+            const workOrder = await tx.workOrder.create({
+              data: {
+                complaintId: id,
+                workerId: assignedWorkerId,
+                priority: priority || 1,
+                status: WorkOrderStatus.ASSIGNED,
+              },
+              include: {
+                worker: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
+              },
+            });
+
+            // 5. Create complaint update record
+            await tx.complaintUpdate.create({
+              data: {
+                complaintId: id,
+                status: ComplaintStatus.APPROVED,
+                description: reason || 'Complaint approved and assigned to worker',
+              },
+            });
+
+            return { updatedComplaint, workOrder };
+          });
+
+          updatedComplaint = result.updatedComplaint;
+          workOrder = result.workOrder;
+        } catch (transactionError) {
+          console.error('Transaction failed during complaint approval:', transactionError);
+          res.status(409).json({
+            success: false,
+            message: transactionError instanceof Error ? transactionError.message : 'Failed to process complaint approval',
+          });
+          return;
+        }
 
         // Create notification for worker
         await FirebaseNotificationService.getInstance().createAndSendNotification(
@@ -148,13 +186,32 @@ export class AdminApprovalController {
         );
 
       } else if (action === 'reject') {
-        // Update complaint status to rejected
+        // Check if complaint already has an active work order
+        const existingWorkOrder = await prisma.workOrder.findFirst({
+          where: {
+            complaintId: id,
+            status: {
+              in: [WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.PENDING_REVIEW]
+            }
+          }
+        });
+
+        if (existingWorkOrder) {
+          res.status(409).json({
+            success: false,
+            message: 'Cannot reject a complaint that already has an active work order',
+          });
+          return;
+        }
+
+        // Update complaint status to rejected with rejection reason
         updatedComplaint = await prisma.complaint.update({
           where: { id },
           data: {
             status: ComplaintStatus.REJECTED,
             approvedBy: adminId,
             approvedAt: new Date(),
+            rejectionReason: reason || 'No reason provided',
           },
         });
 
@@ -187,6 +244,29 @@ export class AdminApprovalController {
         return;
       }
 
+      // Send WebSocket notifications for real-time updates
+      try {
+        const wsService = WebSocketService.getInstance();
+        
+        // Broadcast complaint update to all connected users
+        wsService.broadcast({
+          type: 'complaint_update',
+          data: {
+            complaintId: updatedComplaint.id,
+            status: updatedComplaint.status,
+            action: action,
+            workOrderId: workOrder?.id,
+            updatedAt: updatedComplaint.updatedAt,
+          },
+          timestamp: new Date().toISOString(),
+        });
+        
+        console.log(`📡 WebSocket notification sent for complaint ${action}`);
+      } catch (wsError) {
+        console.error('Failed to send WebSocket notification:', wsError);
+        // Continue with response even if WebSocket fails
+      }
+
       const response: ApiResponse = {
         success: true,
         message: `Complaint ${action}d successfully`,
@@ -212,15 +292,15 @@ export class AdminApprovalController {
    */
   static async getPendingComplaints(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { page = 1, limit = 10 } = req.query as any;
+      const { page = 1, limit = 10 } = req.query as { page?: string; limit?: string };
 
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const skip = (parseInt(String(page)) - 1) * parseInt(String(limit));
 
       const [complaints, total] = await Promise.all([
         prisma.complaint.findMany({
           where: { status: ComplaintStatus.REGISTERED },
           skip,
-          take: parseInt(limit),
+          take: parseInt(String(limit)),
           orderBy: { createdAt: 'desc' },
           include: {
             user: {
@@ -249,10 +329,10 @@ export class AdminApprovalController {
         data: {
           complaints: complaintsWithParsedImages,
           pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            total,
-            pages: Math.ceil(total / parseInt(limit)),
+        page: parseInt(String(page)),
+        limit: parseInt(String(limit)),
+        total,
+        pages: Math.ceil(total / parseInt(String(limit))),
           },
         },
       };
@@ -290,7 +370,7 @@ export class AdminApprovalController {
               workOrders: {
                 where: {
                   status: {
-                    in: [ComplaintStatus.APPROVED, ComplaintStatus.PROCESSING],
+                    in: [WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.PENDING_REVIEW],
                   },
                 },
               },
@@ -370,10 +450,10 @@ export class AdminApprovalController {
         return;
       }
 
-      if (workOrder.status !== ComplaintStatus.COMPLETED) {
+      if (workOrder.status !== WorkOrderStatus.PENDING_REVIEW) {
         res.status(400).json({
           success: false,
-          message: 'Work order must be completed by worker before final approval',
+          message: 'Work order must be in PENDING_REVIEW status before final approval',
         });
         return;
       }
@@ -382,13 +462,15 @@ export class AdminApprovalController {
       let updatedComplaint;
 
       if (action === 'approve') {
-        // Update work order admin approval status
+        // Update work order admin approval status and set completedAt
         updatedWorkOrder = await prisma.workOrder.update({
           where: { id: workOrderId },
           data: {
+            status: WorkOrderStatus.COMPLETED,
             adminApprovalStatus: 'APPROVED',
             adminApprovedBy: adminId,
             adminApprovedAt: new Date(),
+            completedAt: new Date(),
           },
         });
 
@@ -404,7 +486,7 @@ export class AdminApprovalController {
         await prisma.workOrderUpdate.create({
           data: {
             workOrderId,
-            status: ComplaintStatus.COMPLETED,
+            status: WorkOrderStatus.COMPLETED,
             description: adminNotes || 'Work completed and approved by admin',
             progress: 100,
           },
@@ -445,14 +527,16 @@ export class AdminApprovalController {
         }
 
       } else if (action === 'reject') {
-        // Update work order admin approval status
+        // Update work order admin approval status and increment rework count
         updatedWorkOrder = await prisma.workOrder.update({
           where: { id: workOrderId },
           data: {
+            status: WorkOrderStatus.IN_PROGRESS,
             adminApprovalStatus: 'REJECTED',
             adminApprovedBy: adminId,
             adminApprovedAt: new Date(),
             adminRejectionReason: adminNotes,
+            reworkCount: { increment: 1 },
           },
         });
 
@@ -468,7 +552,7 @@ export class AdminApprovalController {
         await prisma.workOrderUpdate.create({
           data: {
             workOrderId,
-            status: ComplaintStatus.PROCESSING,
+            status: WorkOrderStatus.IN_PROGRESS,
             description: adminNotes || 'Work rejected by admin, please revise',
             progress: 50,
           },
@@ -484,7 +568,7 @@ export class AdminApprovalController {
             {
               workOrderId: workOrderId,
               complaintId: workOrder.complaintId,
-              status: 'PROCESSING'
+              status: 'IN_PROGRESS'
             }
           );
         } catch (notificationError) {
@@ -496,6 +580,29 @@ export class AdminApprovalController {
           message: 'Invalid action. Use "approve" or "reject"',
         });
         return;
+      }
+
+      // Send WebSocket notifications for real-time updates
+      try {
+        const wsService = WebSocketService.getInstance();
+        
+        // Broadcast work order update to all connected users
+        wsService.broadcast({
+          type: 'work_order_update',
+          data: {
+            workOrderId: updatedWorkOrder.id,
+            complaintId: updatedWorkOrder.complaintId,
+            status: updatedWorkOrder.status,
+            action: action,
+            updatedAt: updatedWorkOrder.updatedAt,
+          },
+          timestamp: new Date().toISOString(),
+        });
+        
+        console.log(`📡 WebSocket notification sent for work order ${action}`);
+      } catch (wsError) {
+        console.error('Failed to send WebSocket notification:', wsError);
+        // Continue with response even if WebSocket fails
       }
 
       const response: ApiResponse = {

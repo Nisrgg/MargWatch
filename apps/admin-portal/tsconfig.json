@@ -25,7 +25,8 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ]
+      ],
+      "@margwatch/shared-types": ["./packages/shared-types"]
     },
     "target": "ES2017"
   },

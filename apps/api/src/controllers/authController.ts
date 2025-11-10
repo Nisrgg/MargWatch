@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { prisma } from '../config/database';
 import { AuthUtils } from '../utils/auth';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@margwatch/shared-types';
 import { ApiResponse, AuthenticatedRequest, LoginRequest, RegisterRequest } from '../types';
 
 export class AuthController {
@@ -40,6 +40,9 @@ export class AuthController {
       const hashedPassword = await AuthUtils.hashPassword(password);
 
       // Create user
+      // SECURITY: Explicitly set role to USER to prevent role escalation attacks
+      // The role field is never extracted from req.body, ensuring users cannot
+      // register with admin or worker privileges through this public endpoint
       const user = await prisma.user.create({
         data: {
           email,
@@ -47,7 +50,7 @@ export class AuthController {
           firstName,
           lastName,
           phone,
-          role: UserRole.USER,
+          role: UserRole.USER, // Always USER for public registration
         },
         select: {
           id: true,
@@ -64,7 +67,7 @@ export class AuthController {
       const token = AuthUtils.generateToken({
         id: user.id,
         email: user.email,
-        role: user.role,
+        role: user.role as UserRole,
       });
 
       const response: ApiResponse = {
@@ -131,7 +134,7 @@ export class AuthController {
       const token = AuthUtils.generateToken({
         id: user.id,
         email: user.email,
-        role: user.role,
+        role: user.role as UserRole,
       });
 
       const response: ApiResponse = {
@@ -301,6 +304,31 @@ export class AuthController {
       res.status(500).json({
         success: false,
         message: 'Failed to change password',
+        error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined,
+      });
+    }
+  }
+
+  /**
+   * Logout user
+   */
+  static async logout(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      // Since we're using JWT tokens, we don't need to invalidate the token server-side
+      // The client should remove the token from storage
+      // In a more secure implementation, you might want to maintain a blacklist of tokens
+      
+      const response: ApiResponse = {
+        success: true,
+        message: 'Logged out successfully',
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Logout failed',
         error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined,
       });
     }

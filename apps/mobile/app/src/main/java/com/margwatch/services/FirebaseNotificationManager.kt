@@ -17,7 +17,7 @@ class FirebaseNotificationManager(private val context: Context) {
     suspend fun getFCMToken(): String? {
         return try {
             val token = FirebaseMessaging.getInstance().token.await()
-            Log.d(TAG, "FCM Token: $token")
+            Log.d(TAG, "FCM Token obtained")
             token
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get FCM token", e)

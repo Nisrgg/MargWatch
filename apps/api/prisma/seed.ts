@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, IssueCategory, ComplaintStatus } from '@prisma/client';
+import { PrismaClient, UserRole, IssueCategory, ComplaintStatus, WorkOrderStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -133,7 +133,7 @@ async function main() {
         complaintId: complaint.id,
         workerId: worker.id,
         priority: Math.floor(Math.random() * 3) + 1, // 1, 2, or 3
-        status: [ComplaintStatus.APPROVED, ComplaintStatus.PROCESSING, ComplaintStatus.COMPLETED][Math.floor(Math.random() * 3)],
+        status: [WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.COMPLETED][Math.floor(Math.random() * 3)],
         cost: Math.floor(Math.random() * 5000) + 500,
         assignedAt,
         completedAt: Math.random() > 0.6 ? new Date(assignedAt.getTime() + Math.random() * 7 * 24 * 60 * 60 * 1000) : null,

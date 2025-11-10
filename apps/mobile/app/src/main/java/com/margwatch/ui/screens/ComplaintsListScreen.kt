@@ -23,10 +23,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.margwatch.data.local.TokenManager
-import com.margwatch.data.model.Complaint
+import com.margwatch.shared.types.Complaint
+import com.margwatch.shared.types.ComplaintStatus
+import com.margwatch.shared.types.IssueCategory
 import com.margwatch.ui.components.EmptyState
 import com.margwatch.ui.components.StatusChip
 import com.margwatch.ui.components.StatusType
+import com.margwatch.utils.formatCategoryName
+import com.margwatch.utils.getStatusType
 import com.margwatch.ui.theme.MargWatchTheme
 import com.margwatch.ui.theme.GradientStart
 import com.margwatch.ui.theme.GradientEnd
@@ -50,9 +54,9 @@ fun ComplaintsListScreen(
     LaunchedEffect(Unit) {
         android.util.Log.d("ComplaintsList", "Starting token check...")
         tokenManager.getToken().collect { token ->
-            android.util.Log.d("ComplaintsList", "Token flow emitted: ${token?.take(20) ?: "null"}...")
+            android.util.Log.d("ComplaintsList", "Token flow emitted successfully")
             if (token != null) {
-                android.util.Log.d("ComplaintsList", "Token found: ${token.take(20)}...")
+                android.util.Log.d("ComplaintsList", "Token found")
                 complaintViewModel.getUserComplaints(token)
             } else {
                 android.util.Log.d("ComplaintsList", "No token found")
@@ -251,8 +255,8 @@ fun EnhancedComplaintCard(
                     modifier = Modifier.weight(1f)
                 )
                 StatusChip(
-                    text = complaint.status,
-                    status = getStatusType(complaint.status)
+                    status = complaint.status.name,
+                    type = getStatusType(complaint.status.name)
                 )
             }
             
@@ -288,7 +292,7 @@ fun EnhancedComplaintCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = complaint.category,
+                            text = complaint.category.name,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -357,7 +361,7 @@ fun EnhancedComplaintCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "AI: ${formatCategoryName(complaint.mlCategory)}",
+                            text = "AI: ${formatCategoryName(complaint.mlCategory.name)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.secondary,
                             fontWeight = FontWeight.Medium
@@ -380,7 +384,7 @@ fun EnhancedComplaintCard(
                 }
                 
                 // Image count indicator
-                if (complaint.imageCount > 0) {
+                if ((complaint.imageCount ?: 0) > 0) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -392,7 +396,7 @@ fun EnhancedComplaintCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${complaint.imageCount} photo${if (complaint.imageCount > 1) "s" else ""}",
+                            text = "${complaint.imageCount ?: 0} photo${if ((complaint.imageCount ?: 0) > 1) "s" else ""}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
@@ -410,25 +414,6 @@ private fun formatDate(dateString: String): String {
         SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(date)
     } catch (e: Exception) {
         "Unknown date"
-    }
-}
-
-private fun formatCategoryName(category: String) = when (category.uppercase()) {
-    "POTHOLE" -> "Pothole"
-    "ROAD_INSTABILITY" -> "Road Instability"
-    "STREETLIGHT_DAMAGE" -> "Streetlight Damage"
-    "TREE_DAMAGE" -> "Tree Damage"
-    "OTHER" -> "Other"
-    else -> category.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }
-}
-
-private fun getStatusType(status: String): StatusType {
-    return when (status.uppercase()) {
-        "PENDING" -> StatusType.WARNING
-        "APPROVED", "COMPLETED" -> StatusType.SUCCESS
-        "REJECTED", "CANCELLED" -> StatusType.ERROR
-        "IN_PROGRESS", "PROCESSING" -> StatusType.INFO
-        else -> StatusType.NEUTRAL
     }
 }
 
@@ -452,15 +437,15 @@ fun PreviewEnhancedComplaintCard() {
                 id = "1",
                 title = "Pothole on Main Street",
                 description = "Large pothole causing traffic issues and potential damage to vehicles",
-                category = "POTHOLE",
-                status = "PENDING",
+                category = IssueCategory.POTHOLE,
+                status = ComplaintStatus.REGISTERED,
                 latitude = 40.7128f,
                 longitude = -74.0060f,
                 address = "Main Street, New York, NY",
                 imageUrl = null,
                 imageUrls = emptyList(),
                 imageCount = 3,
-                mlCategory = "POTHOLE",
+                mlCategory = IssueCategory.POTHOLE,
                 mlConfidence = 0.87f,
                 mlModelVersion = "v1.0",
                 mlProcessingTime = 0.23f,

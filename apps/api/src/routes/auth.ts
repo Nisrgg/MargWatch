@@ -80,5 +80,6 @@ router.use(authenticateToken);
 router.get('/profile', AuthController.getProfile);
 router.put('/profile', updateProfileValidation, handleValidationErrors, AuthController.updateProfile);
 router.put('/change-password', changePasswordValidation, handleValidationErrors, AuthController.changePassword);
+router.post('/logout', AuthController.logout);
 
 export default router;

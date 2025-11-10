@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database - Using Neon Cloud Database
+  # PostgreSQL Database - Local Development (for testing)
   # postgres:
   #   image: postgres:15-alpine
   #   container_name: margwatch-postgres
@@ -13,7 +13,6 @@ services:
   #     - "5432:5432"
   #   volumes:
   #     - postgres_data:/var/lib/postgresql/data
-  #     - ../../apps/api/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql
   #   networks:
   #     - margwatch-network
   #   restart: unless-stopped
@@ -43,19 +42,35 @@ services:
   # Backend API Service
   api:
     build:
-      context: ../../apps/api
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: apps/api/Dockerfile
     container_name: margwatch-api
     environment:
       NODE_ENV: production
       PORT: 5000
-      DATABASE_URL: ${DATABASE_URL:-postgresql://neondb_owner:npg_n97dItXgvqbu@ep-snowy-frost-addvnksc-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require}
+      DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
       JWT_EXPIRES_IN: 24h
       CORS_ORIGIN: http://localhost:3000,http://localhost:8080
       ML_SERVICE_URL: http://ml-service:8000
       ML_MODEL_URL: http://ml-service:8000/predict
+      # Cloudinary Configuration (Required for image uploads)
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      # Firebase Configuration (Required for push notifications)
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      FIREBASE_PRIVATE_KEY_ID: ${FIREBASE_PRIVATE_KEY_ID}
+      FIREBASE_CLIENT_ID: ${FIREBASE_CLIENT_ID}
+      FIREBASE_AUTH_URI: ${FIREBASE_AUTH_URI}
+      FIREBASE_TOKEN_URI: ${FIREBASE_TOKEN_URI}
+      FIREBASE_AUTH_PROVIDER_X509_CERT_URL: ${FIREBASE_AUTH_PROVIDER_X509_CERT_URL}
+      FIREBASE_CLIENT_X509_CERT_URL: ${FIREBASE_CLIENT_X509_CERT_URL}
+      # Google Maps API (Required for geocoding)
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
     ports:
       - "5000:5000"
     volumes:
@@ -101,8 +116,8 @@ services:
   # Admin Portal (Next.js)
   admin-portal:
     build:
-      context: ../../apps/admin-portal
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: apps/admin-portal/Dockerfile
     container_name: margwatch-admin-portal
     environment:
       NODE_ENV: production

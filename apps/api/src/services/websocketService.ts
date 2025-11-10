@@ -2,6 +2,22 @@ import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database';
 
+interface JWTPayload {
+  id: string;
+  email: string;
+  role: string;
+  iat?: number;
+  exp?: number;
+}
+
+interface WebSocketMessage {
+  type: string;
+  data?: any;
+  userId?: string;
+  message?: string;
+  timestamp?: string;
+}
+
 export class WebSocketService {
     private static instance: WebSocketService;
     private wss: WebSocketServer | null = null;
@@ -23,10 +39,22 @@ export class WebSocketService {
         });
 
         this.wss.on('connection', (ws: WebSocket, req: any) => {
-            console.log('🔌 New WebSocket connection attempt');
+            console.log('🔌 New WebSocket connection attempt from:', {
+                url: req.url,
+                headers: req.headers,
+                remoteAddress: req.socket.remoteAddress,
+                userAgent: req.headers['user-agent']
+            });
             
             const url = new URL(req.url, `http://${req.headers.host}`);
             const token = url.searchParams.get('token');
+            
+            console.log('🔍 Token extraction:', {
+                fullUrl: req.url,
+                searchParams: url.searchParams.toString(),
+                tokenPresent: !!token,
+                tokenPreview: token ? `${token.substring(0, 20)}...` : 'null'
+            });
             
             if (!token) {
                 console.log('❌ No token provided, closing connection');
@@ -35,8 +63,15 @@ export class WebSocketService {
             }
 
             try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })()) as any;
-                console.log(`✅ WebSocket authenticated for user: ${decoded.email}`);
+                console.log('🔐 Attempting JWT verification...');
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET environment variable is required'); })()) as JWTPayload;
+                console.log(`✅ WebSocket authenticated for user:`, {
+                    id: decoded.id,
+                    email: decoded.email,
+                    role: decoded.role,
+                    iat: decoded.iat,
+                    exp: decoded.exp
+                });
                 
                 // Store client connection
                 this.clients.set(decoded.id, ws);
@@ -51,7 +86,7 @@ export class WebSocketService {
                 // Handle messages from client
                 ws.on('message', (data: Buffer) => {
                     try {
-                        const message = JSON.parse(data.toString());
+                        const message: WebSocketMessage = JSON.parse(data.toString());
                         console.log('📨 Received WebSocket message:', message);
                         
                         // Echo back the message
@@ -78,7 +113,11 @@ export class WebSocketService {
                 });
 
             } catch (error) {
-                console.log('❌ Invalid token, closing connection');
+                console.log('❌ JWT verification failed:', {
+                    error: error instanceof Error ? error.message : error,
+                    tokenPreview: token ? `${token.substring(0, 20)}...` : 'null',
+                    jwtSecret: process.env.JWT_SECRET ? 'present' : 'missing'
+                });
                 ws.close(1008, 'Invalid token');
             }
         });
@@ -87,7 +126,7 @@ export class WebSocketService {
     }
 
     // Send notification to specific user
-    sendToUser(userId: string, message: any): boolean {
+    sendToUser(userId: string, message: WebSocketMessage): boolean {
         const client = this.clients.get(userId);
         if (client && client.readyState === WebSocket.OPEN) {
             try {
@@ -108,7 +147,7 @@ export class WebSocketService {
     }
 
     // Send notification to multiple users
-    sendToMultipleUsers(userIds: string[], message: any): number {
+    sendToMultipleUsers(userIds: string[], message: WebSocketMessage): number {
         let sentCount = 0;
         userIds.forEach(userId => {
             if (this.sendToUser(userId, message)) {
@@ -120,7 +159,7 @@ export class WebSocketService {
     }
 
     // Broadcast to all connected users
-    broadcast(message: any): number {
+    broadcast(message: WebSocketMessage): number {
         let sentCount = 0;
         this.clients.forEach((client, userId) => {
             if (client.readyState === WebSocket.OPEN) {

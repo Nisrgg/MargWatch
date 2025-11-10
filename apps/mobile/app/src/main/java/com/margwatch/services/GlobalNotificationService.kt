@@ -29,7 +29,7 @@ class GlobalNotificationService private constructor() {
         try {
             android.util.Log.d("GlobalWS", "Getting token from tokenManager...")
             val token = tokenManager.getToken().first() as? String
-            android.util.Log.d("GlobalWS", "Token obtained: ${token?.take(20)}...")
+            android.util.Log.d("GlobalWS", "Token obtained successfully")
             
             if (token != null) {
                 android.util.Log.d("GlobalWS", "Creating WebSocketNotificationService...")

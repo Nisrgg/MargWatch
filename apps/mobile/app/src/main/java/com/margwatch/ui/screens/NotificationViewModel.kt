@@ -3,8 +3,8 @@ package com.margwatch.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.margwatch.data.local.TokenManager
-import com.margwatch.data.model.Notification
-import com.margwatch.data.model.NotificationResponse
+import com.margwatch.shared.types.Notification
+import com.margwatch.shared.types.NotificationResponse
 import com.margwatch.data.repository.MargWatchRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

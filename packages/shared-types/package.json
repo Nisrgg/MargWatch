@@ -4,9 +4,13 @@
   "description": "Shared TypeScript types for MargWatch project",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*"
+  ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
