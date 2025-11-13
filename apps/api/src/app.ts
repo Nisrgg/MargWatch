@@ -136,12 +136,17 @@ app.post('/api/fcm/token', async (req, res) => {
       });
     }
 
+    console.log(`📥 FCM Token registration request from user: ${decoded.id}`);
+    console.log(`   Token length: ${fcmToken.length}, First 20 chars: ${fcmToken.substring(0, 20)}...`);
+
     // Update user's FCM token
     const user = await prisma.user.update({
       where: { id: decoded.id },
       data: { fcmToken },
-      select: { id: true, email: true, fcmToken: true }
+      select: { id: true, email: true, fcmToken: true, role: true }
     });
+
+    console.log(`✅ FCM token registered successfully for user: ${user.email} (${user.role})`);
 
     return res.json({
       success: true,

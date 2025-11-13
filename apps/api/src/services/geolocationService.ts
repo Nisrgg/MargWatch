@@ -138,23 +138,23 @@ export class GeolocationService {
   }
 
   /**
-   * Validate coordinates are within service area (Gujarat, India)
-   * Gujarat bounding box: 20.1°N to 24.7°N, 68.1°E to 74.4°E
+   * Validate coordinates are within service area (India - Pan India)
+   * India bounding box: 6.0°N to 37.5°N, 68.0°E to 97.5°E
    */
   validateServiceArea(latitude: number, longitude: number): boolean {
-    // Gujarat, India bounding box
-    const GUJARAT_BOUNDS = {
-      minLat: 20.1,
-      maxLat: 24.7,
-      minLon: 68.1,
-      maxLon: 74.4,
+    // India bounding box (Pan India)
+    const INDIA_BOUNDS = {
+      minLat: 6.0,
+      maxLat: 37.5,
+      minLon: 68.0,
+      maxLon: 97.5,
     };
 
     return (
-      latitude >= GUJARAT_BOUNDS.minLat &&
-      latitude <= GUJARAT_BOUNDS.maxLat &&
-      longitude >= GUJARAT_BOUNDS.minLon &&
-      longitude <= GUJARAT_BOUNDS.maxLon
+      latitude >= INDIA_BOUNDS.minLat &&
+      latitude <= INDIA_BOUNDS.maxLat &&
+      longitude >= INDIA_BOUNDS.minLon &&
+      longitude <= INDIA_BOUNDS.maxLon
     );
   }
 
@@ -177,7 +177,7 @@ export class GeolocationService {
     if (!this.validateServiceArea(latitude, longitude)) {
       return {
         isValid: false,
-        error: 'Coordinates are outside the service area. Please provide coordinates within Gujarat, India.'
+        error: 'Coordinates are outside the service area. Please provide coordinates within India.'
       };
     }
 

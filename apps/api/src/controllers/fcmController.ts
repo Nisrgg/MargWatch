@@ -19,11 +19,16 @@ export class FCMController {
         return;
       }
 
+      console.log(`📥 FCM Token registration request from user: ${userId}`);
+      console.log(`   Token length: ${fcmToken.length}, First 20 chars: ${fcmToken.substring(0, 20)}...`);
+
       const user = await prisma.user.update({
         where: { id: userId },
         data: { fcmToken },
-        select: { id: true, email: true, fcmToken: true },
+        select: { id: true, email: true, fcmToken: true, role: true },
       });
+
+      console.log(`✅ FCM token registered successfully for user: ${user.email} (${user.role})`);
 
       const response: ApiResponse = {
         success: true,

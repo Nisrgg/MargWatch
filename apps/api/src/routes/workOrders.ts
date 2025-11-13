@@ -18,7 +18,7 @@ router.post('/approve', requireAdmin, approveWorkOrderValidation, handleValidati
 // Worker routes
 router.get('/my-orders', requireWorker, WorkOrderController.getWorkerOrders);
 router.get('/:id/details', requireWorkerOrAdmin, WorkOrderController.getWorkOrderDetails);
-router.put('/:id/status', requireWorker, uploadSingleImage, uploadSingleToCloudinary, updateWorkStatusValidation, handleValidationErrors, WorkOrderController.updateWorkStatus);
+router.put('/:id/status', requireWorker, uploadMultipleImages, uploadToCloudinary, updateWorkStatusValidation, handleValidationErrors, WorkOrderController.updateWorkStatus);
 router.put('/:id/complete', requireWorker, uploadMultipleImages, uploadToCloudinary, completeWorkOrderValidation, handleValidationErrors, WorkOrderController.completeWorkOrderEnhanced);
 
 export default router;

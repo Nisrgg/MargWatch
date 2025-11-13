@@ -562,7 +562,9 @@ export class WorkOrderController {
       }
 
       const { id } = req.params;
-      const { status, description, progress, imageUrl } = req.body;
+      const { status, description, progress } = req.body;
+      // Get uploaded image URLs from Cloudinary middleware (multiple images)
+      const imageUrls = req.body.imageUrls || [];
       const workerId = req.user!.id;
 
       // Convert progress to integer if provided
@@ -632,7 +634,7 @@ export class WorkOrderController {
           status,
           description,
           progress: progressInt,
-          imageUrl,
+          imageUrl: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
         },
       });
 
@@ -642,6 +644,19 @@ export class WorkOrderController {
           where: { id: workOrder.complaintId },
           data: { status: ComplaintStatus.COMPLETED },
         });
+
+        // Notify user that work is completed
+        await FirebaseNotificationService.getInstance().createAndSendNotification(
+          workOrder.complaint.userId,
+          'Work Completed',
+          `Work on your complaint "${workOrder.complaint.title}" has been completed and is awaiting admin approval`,
+          'work_completed',
+          {
+            workOrderId: id,
+            complaintId: workOrder.complaintId,
+            status: 'COMPLETED'
+          }
+        );
 
         // Notify all admins about completed work
         const admins = await prisma.user.findMany({
@@ -664,6 +679,7 @@ export class WorkOrderController {
         }
       } else if (status === WorkOrderStatus.IN_PROGRESS && workOrder.status !== WorkOrderStatus.IN_PROGRESS) {
         // Only send notification if transitioning TO IN_PROGRESS for the first time
+        // Notify user
         await FirebaseNotificationService.getInstance().createAndSendNotification(
           workOrder.complaint.userId,
           'Work Started',
@@ -675,12 +691,38 @@ export class WorkOrderController {
             status: 'IN_PROGRESS'
           }
         );
+        // Notify worker
+        await FirebaseNotificationService.getInstance().createAndSendNotification(
+          workOrder.workerId,
+          'Work Started',
+          `You have started work on "${workOrder.complaint.title}"`,
+          'work_progress',
+          {
+            workOrderId: id,
+            complaintId: workOrder.complaintId,
+            status: 'IN_PROGRESS'
+          }
+        );
       } else if (status === WorkOrderStatus.IN_PROGRESS && workOrder.status === WorkOrderStatus.IN_PROGRESS) {
         // Send notification for progress updates within IN_PROGRESS status
+        // Notify user
         await FirebaseNotificationService.getInstance().createAndSendNotification(
           workOrder.complaint.userId,
           'Work Progress Update',
           `Work on your complaint "${workOrder.complaint.title}" has been updated: ${description || 'Progress updated'}`,
+          'work_progress',
+          {
+            workOrderId: id,
+            complaintId: workOrder.complaintId,
+            status: 'PROCESSING',
+            progress: progressInt
+          }
+        );
+        // Notify worker
+        await FirebaseNotificationService.getInstance().createAndSendNotification(
+          workOrder.workerId,
+          'Work Progress Updated',
+          `Your progress update on "${workOrder.complaint.title}" has been recorded`,
           'work_progress',
           {
             workOrderId: id,
@@ -800,6 +842,19 @@ export class WorkOrderController {
           imageUrl: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
         },
       });
+
+      // Notify user that work is completed
+      await FirebaseNotificationService.getInstance().createAndSendNotification(
+        workOrder.complaint.userId,
+        'Work Completed',
+        `Work on your complaint "${workOrder.complaint.title}" has been completed and is awaiting admin approval`,
+        'work_completed',
+        {
+          workOrderId: id,
+          complaintId: workOrder.complaintId,
+          status: 'COMPLETED'
+        }
+      );
 
       // Notify all admins about completed work
       const admins = await prisma.user.findMany({
@@ -1307,7 +1362,6 @@ export const updateWorkStatusValidation = [
     const num = parseInt(value.toString());
     return !isNaN(num) && num >= 0 && num <= 100;
   }).withMessage('Progress must be a number between 0 and 100'),
-  body('imageUrl').optional().trim(),
 ];
 
 export const reviewWorkOrderValidation = [

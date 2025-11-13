@@ -82,8 +82,25 @@ export class FirebaseNotificationService {
       const response = await admin.messaging().send(payload);
       console.log(`✅ FCM notification sent successfully: ${response}`);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to send FCM notification:', error);
+      
+      // If token is invalid/not registered, we should remove it from database
+      if (error?.code === 'messaging/registration-token-not-registered' || 
+          error?.code === 'messaging/invalid-registration-token') {
+        console.log(`⚠️ Invalid FCM token detected, removing from database...`);
+        // Find and remove this token from all users
+        try {
+          await prisma.user.updateMany({
+            where: { fcmToken: fcmToken },
+            data: { fcmToken: null },
+          });
+          console.log(`✅ Removed invalid FCM token from database`);
+        } catch (dbError) {
+          console.error('Failed to remove invalid token from database:', dbError);
+        }
+      }
+      
       return false;
     }
   }
@@ -127,9 +144,43 @@ export class FirebaseNotificationService {
       
       console.log(`📊 FCM batch send results: ${successCount} success, ${failureCount} failed`);
       
+      // Handle invalid tokens - remove them from database
+      if (response.responses) {
+        const invalidTokens: string[] = [];
+        response.responses.forEach((resp, index) => {
+          if (!resp.success && resp.error) {
+            const errorCode = (resp.error as any)?.code;
+            if (errorCode === 'messaging/registration-token-not-registered' || 
+                errorCode === 'messaging/invalid-registration-token') {
+              invalidTokens.push(fcmTokens[index]);
+            }
+          }
+        });
+        
+        if (invalidTokens.length > 0) {
+          console.log(`⚠️ Found ${invalidTokens.length} invalid FCM tokens, removing from database...`);
+          try {
+            await prisma.user.updateMany({
+              where: { fcmToken: { in: invalidTokens } },
+              data: { fcmToken: null },
+            });
+            console.log(`✅ Removed ${invalidTokens.length} invalid FCM tokens from database`);
+          } catch (dbError) {
+            console.error('Failed to remove invalid tokens from database:', dbError);
+          }
+        }
+      }
+      
       return { successCount, failureCount };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to send FCM batch notifications:', error);
+      
+      // If it's a network/proxy error (like the /batch 404), log it but don't fail completely
+      if (error?.code === 'messaging/unknown-error' && error?.message?.includes('404')) {
+        console.error('⚠️ Firebase Admin SDK network error - this might be a proxy/network issue');
+        console.error('   The /batch endpoint error suggests a network configuration problem');
+      }
+      
       return { successCount: 0, failureCount: fcmTokens.length };
     }
   }
@@ -200,13 +251,23 @@ export class FirebaseNotificationService {
       // Get user's FCM token
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { fcmToken: true, role: true },
+        select: { fcmToken: true, role: true, email: true },
       });
 
-      if (!user?.fcmToken) {
-        console.log(`⚠️ User ${userId} has no FCM token, notification saved to database only`);
+      if (!user) {
+        console.error(`❌ User ${userId} not found, cannot send notification`);
         return;
       }
+
+      if (!user.fcmToken) {
+        console.log(`⚠️ User ${userId} (${user.role}, ${user.email}) has no FCM token, notification saved to database only`);
+        console.log(`   Notification: "${title}" - "${message}"`);
+        console.log(`   💡 User needs to open the mobile app to register FCM token`);
+        return;
+      }
+
+      console.log(`📤 Sending notification to user ${userId} (${user.role}, ${user.email}): "${title}"`);
+      console.log(`   FCM Token: ${user.fcmToken.substring(0, 20)}...`);
 
       // Send FCM notification
       const notificationData = {
@@ -248,17 +309,25 @@ export class FirebaseNotificationService {
       // Get FCM tokens for all users
       const users = await prisma.user.findMany({
         where: { id: { in: userIds } },
-        select: { id: true, fcmToken: true },
+        select: { id: true, fcmToken: true, role: true, email: true },
       });
 
-      const fcmTokens = users
-        .filter(user => user.fcmToken)
-        .map(user => user.fcmToken!);
+      const usersWithTokens = users.filter(user => user.fcmToken);
+      const usersWithoutTokens = users.filter(user => !user.fcmToken);
+
+      if (usersWithoutTokens.length > 0) {
+        console.log(`⚠️ ${usersWithoutTokens.length} user(s) without FCM tokens: ${usersWithoutTokens.map(u => `${u.email} (${u.role})`).join(', ')}`);
+      }
+
+      const fcmTokens = usersWithTokens.map(user => user.fcmToken!);
 
       if (fcmTokens.length === 0) {
-        console.log('⚠️ No FCM tokens found for the specified users');
+        console.log(`⚠️ No FCM tokens found for ${userIds.length} specified user(s), notification saved to database only`);
+        console.log(`   Notification: "${title}" - "${message}"`);
         return;
       }
+
+      console.log(`📤 Sending batch notification to ${fcmTokens.length} user(s): "${title}"`);
 
       // Create notifications in database for all users
       const notifications = await Promise.all(

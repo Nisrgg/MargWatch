@@ -33,14 +33,20 @@ export class ComplaintController {
       const lat = parseFloat(latitude);
       const lon = parseFloat(longitude);
 
-      // Validate coordinates with service area check
-      const coordinateValidation = geolocationService.validateCoordinatesForService(lat, lon);
-      if (!coordinateValidation.isValid) {
+      // Validate coordinates (basic validation only - no service area restriction for Pan India)
+      const basicValidation = geolocationService.validateCoordinates(lat, lon);
+      if (!basicValidation) {
         res.status(400).json({
           success: false,
-          message: coordinateValidation.error,
+          message: 'Invalid coordinates provided. Latitude must be between -90 and 90, longitude between -180 and 180.',
         });
         return;
+      }
+      
+      // Log if coordinates are outside India bounds (warning only, not blocking)
+      const isInIndiaBounds = geolocationService.validateServiceArea(lat, lon);
+      if (!isInIndiaBounds) {
+        console.log(`⚠️ Warning: Complaint submitted from outside India bounds: ${lat}, ${lon}`);
       }
 
       // Check if images were uploaded
@@ -193,6 +199,26 @@ export class ComplaintController {
           console.log(`📢 Published notifications for ${admins.length} admins`);
         } else {
           console.warn('No admins found to notify');
+        }
+
+        // Notify all workers about new complaint via topic subscription
+        // Workers subscribe to 'complaint_created' topic to receive notifications
+        try {
+          await FirebaseNotificationService.getInstance().sendToTopic(
+            'complaint_created',
+            'New Complaint Available',
+            `A new complaint "${complaint.title}" has been submitted and is available for assignment.`,
+            {
+              complaintId: complaint.id,
+              status: 'REGISTERED',
+              category: complaint.category,
+              priority: 'HIGH',
+              type: 'complaint_created'
+            }
+          );
+          console.log(`📢 Topic notification sent to 'complaint_created' topic for workers`);
+        } catch (topicError) {
+          console.error('Failed to send topic notification to workers:', topicError);
         }
       } catch (notificationError) {
         console.error('Failed to create notifications:', notificationError);
