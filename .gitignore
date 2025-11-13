@@ -198,6 +198,7 @@ tmp/
 MargWatch/.kotlin/
 
 # IDE and editor files
+.cursor/
 .vscode/
 .idea/
 *.swp
