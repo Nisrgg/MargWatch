@@ -44,8 +44,7 @@ cd ../MargWatch
 - **Backend API**: http://localhost:5000
 - **Health Check**: http://localhost:5000/health
 - **ML Service**: http://localhost:5001
-- **Admin Portal**: http://localhost:3000 (Coming Soon)
-
+- **Admin Portal**: http://localhost:3000
 ## 📱 Mobile App
 
 The Android app allows users to:
