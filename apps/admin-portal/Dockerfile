@@ -7,6 +7,13 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
+# Configure npm for better network reliability
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000 && \
+    npm config set maxsockets 1
+
 # Install dependencies based on the preferred package manager
 COPY apps/admin-portal/package.json apps/admin-portal/package-lock.json* ./
 
@@ -15,10 +22,12 @@ COPY packages/shared-types ./packages/shared-types
 
 # Build shared-types package
 WORKDIR /app/packages/shared-types
-RUN npm install && npm run build
+RUN npm install || (sleep 10 && npm install) || (sleep 20 && npm install)
+RUN npm run build
 WORKDIR /app
 
-RUN npm install
+# Retry logic for network issues
+RUN npm install || (sleep 10 && npm install) || (sleep 20 && npm install)
 
 # Rebuild the source code only when needed
 FROM base AS builder

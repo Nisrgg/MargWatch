@@ -7,6 +7,13 @@ WORKDIR /app
 # Install dependencies for Prisma
 RUN apk add --no-cache openssl
 
+# Configure npm for better network reliability
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000 && \
+    npm config set maxsockets 1
+
 # --- FIX START ---
 # Copy the shared-types package into a local packages directory
 # This makes it available to npm install
@@ -14,7 +21,8 @@ COPY ../../packages/shared-types ./packages/shared-types
 
 # Build the shared-types package first
 WORKDIR /app/packages/shared-types
-RUN npm install && npm run build
+RUN npm install || (sleep 10 && npm install) || (sleep 20 && npm install)
+RUN npm run build
 WORKDIR /app
 # --- FIX END ---
 
@@ -23,7 +31,8 @@ COPY apps/api/package*.json ./
 
 # Install ALL dependencies (including dev dependencies for build)
 # Now it can find the local shared-types package
-RUN npm install
+# Retry logic for network issues
+RUN npm install || (sleep 10 && npm install) || (sleep 20 && npm install)
 
 # Copy Prisma schema
 COPY apps/api/prisma ./prisma/
@@ -38,7 +47,8 @@ COPY apps/api/ .
 COPY ../../packages/shared-types ./packages/shared-types
 
 # Reinstall dependencies to ensure shared-types is properly linked
-RUN npm install
+# Retry logic for network issues
+RUN npm install || (sleep 10 && npm install) || (sleep 20 && npm install)
 
 # Build TypeScript
 RUN npm run build
