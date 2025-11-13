@@ -33,11 +33,11 @@ class ComplaintViewModel(private val repository: MargWatchRepository = MargWatch
 
     // Validation constants
     companion object {
-        // Gujarat, India bounding box (same as backend)
-        private const val GUJARAT_MIN_LAT = 20.1f
-        private const val GUJARAT_MAX_LAT = 24.7f
-        private const val GUJARAT_MIN_LON = 68.1f
-        private const val GUJARAT_MAX_LON = 74.4f
+        // India bounding box (Pan India)
+        private const val INDIA_MIN_LAT = 6.0f
+        private const val INDIA_MAX_LAT = 37.5f
+        private const val INDIA_MIN_LON = 68.0f
+        private const val INDIA_MAX_LON = 97.5f
         
         // Maximum file size (10MB)
         private const val MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024L
@@ -68,14 +68,8 @@ class ComplaintViewModel(private val repository: MargWatchRepository = MargWatch
             )
         }
         
-        // Check service area (Gujarat bounds)
-        if (latitude !in GUJARAT_MIN_LAT..GUJARAT_MAX_LAT || 
-            longitude !in GUJARAT_MIN_LON..GUJARAT_MAX_LON) {
-            return ValidationResult(
-                isValid = false,
-                error = "Coordinates are outside the service area. Please provide coordinates within Gujarat, India."
-            )
-        }
+        // Note: Service area check removed - allowing Pan India submissions without restriction
+        // Coordinates are validated for basic bounds only
         
         return ValidationResult(isValid = true)
     }

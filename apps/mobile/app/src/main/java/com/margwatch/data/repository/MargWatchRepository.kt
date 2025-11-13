@@ -133,7 +133,7 @@ class MargWatchRepository(private val apiService: MargWatchApiService = ApiClien
         workOrderId: String,
         status: String,
         description: String? = null,
-        cost: Double? = null,
+        progress: Int? = null,
         imageFiles: List<File>? = null
     ): Result<WorkOrder> {
         val bearerToken = "Bearer $token"
@@ -145,7 +145,7 @@ class MargWatchRepository(private val apiService: MargWatchApiService = ApiClien
 
             val statusPart = status.toRequestBody("text/plain".toMediaTypeOrNull())
             val descriptionPart = description?.toRequestBody("text/plain".toMediaTypeOrNull())
-            val costPart = cost?.toString()?.toRequestBody("text/plain".toMediaTypeOrNull())
+            val progressPart = progress?.toString()?.toRequestBody("text/plain".toMediaTypeOrNull())
 
             apiService.updateWorkOrderStatus(
                 bearerToken,
@@ -153,7 +153,7 @@ class MargWatchRepository(private val apiService: MargWatchApiService = ApiClien
                 imageParts ?: emptyList(),
                 statusPart,
                 descriptionPart,
-                costPart
+                progressPart
             )
         }.map { it.data!! }
     }

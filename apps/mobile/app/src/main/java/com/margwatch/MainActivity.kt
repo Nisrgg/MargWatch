@@ -18,15 +18,14 @@ import com.margwatch.data.local.TokenManager
 import com.margwatch.ui.screens.*
 import com.margwatch.ui.theme.MargWatchTheme
 import com.margwatch.services.GlobalNotificationService
-import com.google.firebase.FirebaseApp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
+        // Firebase is auto-initialized by Google Services plugin via google-services.json
         // FCM notification channels are created automatically by FirebaseNotificationService
-        FirebaseApp.initializeApp(this)
         setContent {
             MargWatchTheme {
                 Surface(
@@ -51,13 +50,17 @@ fun MargWatchApp() {
     
     val authUiState by authViewModel.uiState.collectAsState()
 
-    // Initialize global notification service only when authenticated
+    // Initialize global notification service and register FCM token when authenticated
     LaunchedEffect(authUiState.isAuthenticated) {
         if (authUiState.isAuthenticated) {
             android.util.Log.d("MainActivity", "User authenticated, initializing global notification service...")
             try {
                 GlobalNotificationService.getInstance().initialize(context, tokenManager)
                 android.util.Log.d("MainActivity", "Global notification service initialization completed")
+                
+                // Register FCM token as a backup (in case it wasn't registered during login/checkExistingAuth)
+                android.util.Log.d("MainActivity", "Registering FCM token as backup...")
+                authViewModel.registerFCMToken()
             } catch (e: Exception) {
                 android.util.Log.e("MainActivity", "Failed to initialize global notifications: ${e.message}", e)
             }
@@ -187,7 +190,8 @@ fun MargWatchApp() {
                 onNavigateToHeatmap = {
                     navController.navigate("heatmap")
                 },
-                workOrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                workOrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+                authViewModel = authViewModel
             )
         }
 
@@ -200,7 +204,8 @@ fun MargWatchApp() {
                 onNavigateToHeatmap = {
                     navController.navigate("heatmap")
                 },
-                workOrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                workOrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+                authViewModel = authViewModel
             )
         }
 
@@ -212,7 +217,8 @@ fun MargWatchApp() {
                 onNavigateToHeatmap = {
                     navController.navigate("heatmap")
                 },
-                workOrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                workOrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+                authViewModel = authViewModel
             )
         }
 

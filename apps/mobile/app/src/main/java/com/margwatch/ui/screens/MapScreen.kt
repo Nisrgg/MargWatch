@@ -246,12 +246,10 @@ fun MapScreen(
                         cameraPositionState = CameraPositionState(
                             position = cameraPosition
                         ),
-                        googleMapOptionsFactory = {
-                            GoogleMapOptions().mapId("90beec7215430eb1aad280ba")
-                        },
+                        // Removed hardcoded mapId - it's optional and might not exist
                         properties = MapProperties(),
                         onMapLoaded = {
-                            android.util.Log.d("MapScreen", "Google Map loaded successfully")
+                            android.util.Log.d("MapScreen", "✅ Google Map loaded successfully")
                         },
                         onMapClick = { latLng ->
                             selectedLocation = latLng

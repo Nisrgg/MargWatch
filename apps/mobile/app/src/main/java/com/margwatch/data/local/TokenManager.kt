@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.map
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "margwatch_prefs")
 
 class TokenManager(private val context: Context) {
+    // Expose context for FCM token registration
+    val appContext: Context get() = context.applicationContext
     
     companion object {
         private val TOKEN_KEY = stringPreferencesKey("auth_token")

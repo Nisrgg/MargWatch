@@ -194,32 +194,48 @@ fun WorkerDashboardScreen(
         UpdateWorkStatusDialog(
             workOrder = uiState.selectedWorkOrder!!,
             onDismiss = { workOrderViewModel.hideDialogs() },
-            onUpdate = { status, description, cost, images ->
+            onUpdate = { status, description, progress, images ->
                 // Convert URIs to Files for upload
                 val imageFiles = images?.map { uri ->
-                    val fileName = "work_image_${System.currentTimeMillis()}.jpg"
+                    val fileName = "work_image_${System.currentTimeMillis()}_${uri.hashCode()}.jpg"
                     val file = File(context.cacheDir, fileName)
                     
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        file.outputStream().use { output ->
-                            input.copyTo(output)
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            file.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
                         }
+                        file
+                    } catch (e: Exception) {
+                        android.util.Log.e("WorkerDashboard", "Failed to convert URI to file: ${e.message}", e)
+                        null
                     }
-                    file
-                } ?: emptyList()
+                }?.filterNotNull() ?: emptyList()
+                
+                val userRole = currentUser?.role
+                if (userRole == null) {
+                    android.util.Log.e("WorkerDashboard", "Current user role is null! User: $currentUser")
+                } else {
+                    android.util.Log.d("WorkerDashboard", "Updating work order with role: $userRole")
+                }
                 
                 workOrderViewModel.updateWorkOrderStatus(
                     tokenManager,
                     uiState.selectedWorkOrder!!.id,
                     status,
                     description,
-                    cost,
+                    progress,
                     imageFiles,
-                    currentUser?.role ?: UserRole.USER
+                    userRole ?: UserRole.USER
                 ) { success, error ->
                     if (success) {
                         workOrderViewModel.hideDialogs()
                         workOrderViewModel.loadWorkOrders(tokenManager) // Refresh after update
+                    } else {
+                        // Error is already shown via showError in ViewModel
+                        // Dialog will stay open so user can retry or cancel
+                        android.util.Log.e("WorkerDashboard", "Failed to update work order: $error")
                     }
                 }
             }
@@ -233,14 +249,25 @@ fun WorkerDashboardScreen(
             uiState = uiState,
             onDismiss = { workOrderViewModel.hideDialogs() },
             onComplete = { 
+                val userRole = currentUser?.role
+                if (userRole == null) {
+                    android.util.Log.e("WorkerDashboard", "Current user role is null for complete! User: $currentUser")
+                } else {
+                    android.util.Log.d("WorkerDashboard", "Completing work order with role: $userRole")
+                }
+                
                 workOrderViewModel.completeWorkOrder(
                     tokenManager,
                     context,
-                    currentUser?.role ?: UserRole.USER
+                    userRole ?: UserRole.USER
                 ) { success, error ->
                     if (success) {
                         workOrderViewModel.hideDialogs()
                         workOrderViewModel.loadWorkOrders(tokenManager) // Refresh after completion
+                    } else {
+                        // Error is already shown via showError in ViewModel
+                        // Dialog will stay open so user can retry or cancel
+                        android.util.Log.e("WorkerDashboard", "Failed to complete work order: $error")
                     }
                 }
             },
@@ -491,25 +518,34 @@ fun WorkOrderCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (workOrder.status.name.lowercase() != "completed") {
-                    Button(
-                        onClick = onUpdateStatus,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = "Update", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Update Status")
+                    // Show Update Status button for ASSIGNED, IN_PROGRESS, or PENDING_REVIEW
+                    if (workOrder.status.name == "ASSIGNED" || 
+                        workOrder.status.name == "IN_PROGRESS" || 
+                        workOrder.status.name == "PENDING_REVIEW") {
+                        Button(
+                            onClick = onUpdateStatus,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = "Update", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Update Status")
+                        }
                     }
                     
-                    Button(
-                        onClick = onComplete,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary
-                        )
-                    ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = "Complete", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Complete")
+                    // Show Complete button only for IN_PROGRESS status
+                    // Workers can only complete work that is in progress
+                    if (workOrder.status.name == "IN_PROGRESS") {
+                        Button(
+                            onClick = onComplete,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiary
+                            )
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = "Complete", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Complete")
+                        }
                     }
                 } else {
                     Card(
@@ -549,11 +585,11 @@ fun WorkOrderCard(
 fun UpdateWorkStatusDialog(
     workOrder: WorkOrder,
     onDismiss: () -> Unit,
-    onUpdate: (String, String?, Double?, List<Uri>?) -> Unit
+    onUpdate: (String, String?, Int?, List<Uri>?) -> Unit
 ) {
     var status by rememberSaveable { mutableStateOf(workOrder.status.name) }
     var description by rememberSaveable { mutableStateOf(workOrder.description ?: "") }
-    var cost by rememberSaveable { mutableStateOf(workOrder.cost?.toString() ?: "") }
+    var progress by rememberSaveable { mutableStateOf("") }
     var selectedImages by rememberSaveable(
         stateSaver = listSaver(
             save = { list -> list.map { it.toString() } },
@@ -567,9 +603,15 @@ fun UpdateWorkStatusDialog(
         title = { Text("Update Work Status") },
         text = {
             Column {
-                // Status dropdown
+                // Status dropdown - only show valid transitions for workers
                 var expanded by remember { mutableStateOf(false) }
-                val statusOptions = listOf("ASSIGNED", "PROCESSING", "IN_PROGRESS")
+                // Workers can transition: ASSIGNED -> IN_PROGRESS, or PENDING_REVIEW -> IN_PROGRESS
+                val statusOptions = when (workOrder.status.name) {
+                    "ASSIGNED" -> listOf("IN_PROGRESS")
+                    "PENDING_REVIEW" -> listOf("IN_PROGRESS")
+                    "IN_PROGRESS" -> listOf("IN_PROGRESS") // Can update progress while in progress
+                    else -> listOf(workOrder.status.name) // Keep current status if no valid transitions
+                }
                 
                 ExposedDropdownMenuBox(
                     expanded = expanded,
@@ -614,13 +656,19 @@ fun UpdateWorkStatusDialog(
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // Cost
+                // Progress (0-100)
                 OutlinedTextField(
-                    value = cost,
-                    onValueChange = { cost = it },
-                    label = { Text("Cost") },
+                    value = progress,
+                    onValueChange = { newValue ->
+                        // Only allow numbers 0-100
+                        if (newValue.isEmpty() || (newValue.toIntOrNull() != null && newValue.toInt() in 0..100)) {
+                            progress = newValue
+                        }
+                    },
+                    label = { Text("Progress (%)") },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    supportingText = { Text("Enter progress percentage (0-100)") }
                 )
                 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -697,7 +745,7 @@ fun UpdateWorkStatusDialog(
                     onUpdate(
                         status,
                         description.ifEmpty { null },
-                        cost.toDoubleOrNull(),
+                        progress.toIntOrNull(),
                         selectedImages.ifEmpty { null }
                     )
                 }

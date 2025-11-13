@@ -85,7 +85,7 @@ interface MargWatchApiService {
         @Part images: List<MultipartBody.Part>? = null,
         @Part("status") status: RequestBody,
         @Part("description") description: RequestBody? = null,
-        @Part("cost") cost: RequestBody? = null
+        @Part("progress") progress: RequestBody? = null
     ): Response<GenericApiResponse<WorkOrder>>
 
     @Multipart

@@ -62,6 +62,9 @@ class AuthViewModel(
                                 user = user
                             )
                         }
+                        // Register FCM token for existing authenticated user
+                        android.util.Log.d("AuthViewModel", "Registering FCM token for existing authenticated user...")
+                        registerFCMToken(token)
                     }.onFailure { e ->
                         android.util.Log.e("AuthViewModel", "Token is invalid: ${e.message}")
                         // Token is invalid, clear it
@@ -272,34 +275,98 @@ class AuthViewModel(
         }
     }
     
-    private fun registerFCMToken(authToken: String) {
+    /**
+     * Register FCM token with backend
+     * Can be called after login or when app resumes
+     */
+    fun registerFCMToken(authToken: String? = null) {
+        if (authToken != null) {
+            registerFCMTokenInternal(authToken)
+        } else {
+            // Get token from TokenManager (Flow<String?>)
+            viewModelScope.launch {
+                val token = tokenManager?.getToken()?.first()
+                if (token != null) {
+                    registerFCMTokenInternal(token)
+                } else {
+                    android.util.Log.w("AuthViewModel", "⚠️ No auth token available, cannot register FCM token")
+                }
+            }
+        }
+    }
+    
+    private fun registerFCMTokenInternal(authToken: String) {
         viewModelScope.launch {
             try {
-                // Get FCM token
-                val fcmManager = FirebaseNotificationManager(android.app.Application())
-                val fcmToken = fcmManager.getFCMToken()
+                android.util.Log.d("AuthViewModel", "🔄 Starting FCM token registration...")
                 
-                if (fcmToken != null) {
-                    android.util.Log.d("AuthViewModel", "FCM Token obtained")
+                // Get FCM token - use application context from TokenManager
+                val context = tokenManager?.appContext
+                if (context == null) {
+                    android.util.Log.e("AuthViewModel", "❌ Application context not available")
+                    return@launch
+                }
+                
+                val fcmManager = FirebaseNotificationManager(context)
+                
+                android.util.Log.d("AuthViewModel", "Requesting FCM token from Firebase...")
+                val fcmToken = fcmManager.getFCMToken(maxRetries = 3)
+                
+                if (fcmToken != null && fcmToken.isNotBlank()) {
+                    android.util.Log.d("AuthViewModel", "✅ FCM Token obtained: ${fcmToken.take(20)}...")
+                    android.util.Log.d("AuthViewModel", "   Token length: ${fcmToken.length}")
+                    android.util.Log.d("AuthViewModel", "📤 Registering FCM token with backend...")
                     
-                    // Register FCM token with backend
-                    val result = repository.updateFCMToken(authToken, fcmToken)
-                    result.onSuccess {
-                        android.util.Log.d("AuthViewModel", "FCM token registered successfully")
-                        
-                        // Subscribe to user-specific topics
-                        val user = _uiState.value.user
-                        if (user != null) {
-                            fcmManager.subscribeToUserTopics(user.id, user.role.name)
+                    // Register FCM token with backend with retry logic
+                    var registrationSuccess = false
+                    var lastError: Exception? = null
+                    
+                    for (attempt in 1..3) {
+                        val result = repository.updateFCMToken(authToken, fcmToken)
+                        result.onSuccess {
+                            android.util.Log.d("AuthViewModel", "✅ FCM token registered successfully with backend (Attempt $attempt)")
+                            registrationSuccess = true
+                            
+                            // Subscribe to user-specific topics
+                            val user = _uiState.value.user
+                            if (user != null) {
+                                android.util.Log.d("AuthViewModel", "📱 Subscribing to user topics for: ${user.id} (${user.role.name})")
+                                try {
+                                    fcmManager.subscribeToUserTopics(user.id, user.role.name)
+                                    android.util.Log.d("AuthViewModel", "✅ FCM topic subscriptions completed")
+                                } catch (e: Exception) {
+                                    android.util.Log.e("AuthViewModel", "❌ Failed to subscribe to topics: ${e.message}")
+                                }
+                            } else {
+                                android.util.Log.w("AuthViewModel", "⚠️ User info not available, skipping topic subscriptions")
+                            }
+                        }.onFailure { e ->
+                            lastError = e as Exception?
+                            android.util.Log.e("AuthViewModel", "❌ Failed to register FCM token (Attempt $attempt/3): ${e.message}")
+                            
+                            if (attempt < 3) {
+                                val delayMs = attempt * 1000L
+                                android.util.Log.d("AuthViewModel", "⏳ Retrying in ${delayMs}ms...")
+                                kotlinx.coroutines.delay(delayMs)
+                            }
                         }
-                    }.onFailure { e ->
-                        android.util.Log.e("AuthViewModel", "Failed to register FCM token: ${e.message}")
+                        
+                        if (registrationSuccess) break
+                    }
+                    
+                    if (!registrationSuccess) {
+                        if (lastError != null) {
+                            android.util.Log.e("AuthViewModel", "❌ All FCM token registration attempts failed", lastError)
+                        } else {
+                            android.util.Log.e("AuthViewModel", "❌ All FCM token registration attempts failed")
+                        }
                     }
                 } else {
-                    android.util.Log.w("AuthViewModel", "Failed to get FCM token")
+                    android.util.Log.e("AuthViewModel", "❌ Failed to get FCM token - Firebase may not be initialized or token is empty")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("AuthViewModel", "Error registering FCM token: ${e.message}")
+                android.util.Log.e("AuthViewModel", "❌ Error registering FCM token: ${e.message}", e)
+                e.printStackTrace()
             }
         }
     }

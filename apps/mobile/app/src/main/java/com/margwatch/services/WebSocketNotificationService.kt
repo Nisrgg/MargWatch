@@ -82,26 +82,77 @@ class WebSocketNotificationService(
                     val json = JSONObject(text)
                     val type = json.getString("type")
                     
+                    android.util.Log.d("WebSocket", "Message type: $type")
+                    
                     when (type) {
                         "connected" -> {
                             android.util.Log.d("WebSocket", "🔌 Connection confirmed")
                         }
                         "notification" -> {
                             val data = json.getJSONObject("data")
-                            val title = data.getString("title")
-                            val message = data.getString("message")
-                            val notificationType = data.getString("type")
+                            val title = data.optString("title", "MargWatch Notification")
+                            val message = data.optString("message", "")
+                            val notificationType = data.optString("type", "general")
                             
                             android.util.Log.d("WebSocket", "📱 Processing notification: $title")
                             onNotificationReceived(title, message, notificationType)
-                            // Local notification removed - FCM handles notifications
+                        }
+                        "broadcast" -> {
+                            // Handle broadcast messages for real-time UI updates
+                            // Note: We don't show local notifications for broadcasts because:
+                            // 1. FCM already handles push notifications
+                            // 2. WebSocket is primarily for real-time UI updates (refreshing lists, etc.)
+                            // 3. Showing both would create duplicate notifications
+                            android.util.Log.d("WebSocket", "📡 Processing broadcast message (UI update only, no notification)")
+                            val dataObj = json.optJSONObject("data")
+                            if (dataObj != null) {
+                                val dataType = dataObj.optString("type", "")
+                                val innerData = dataObj.optJSONObject("data")
+                                
+                                android.util.Log.d("WebSocket", "Broadcast data type: $dataType")
+                                
+                                // Log the broadcast for debugging, but don't trigger notifications
+                                // The UI should listen to these broadcasts to refresh data
+                                when (dataType) {
+                                    "complaint_created" -> {
+                                        if (innerData != null) {
+                                            val complaintId = innerData.optString("complaintId", "")
+                                            val title = innerData.optString("title", "New Complaint")
+                                            android.util.Log.d("WebSocket", "📋 Complaint created: $complaintId - $title (UI update only)")
+                                            // No notification - FCM handles this
+                                        }
+                                    }
+                                    "complaint_update" -> {
+                                        if (innerData != null) {
+                                            val complaintId = innerData.optString("complaintId", "")
+                                            val status = innerData.optString("status", "")
+                                            android.util.Log.d("WebSocket", "📋 Complaint updated: $complaintId - Status: $status (UI update only)")
+                                            // No notification - FCM handles this
+                                        }
+                                    }
+                                    "work_order_update" -> {
+                                        if (innerData != null) {
+                                            val workOrderId = innerData.optString("workOrderId", "")
+                                            val status = innerData.optString("status", "")
+                                            android.util.Log.d("WebSocket", "🔧 Work order updated: $workOrderId - Status: $status (UI update only)")
+                                            // No notification - FCM handles this
+                                        }
+                                    }
+                                    else -> {
+                                        android.util.Log.d("WebSocket", "📨 Unknown broadcast data type: $dataType")
+                                    }
+                                }
+                            } else {
+                                android.util.Log.w("WebSocket", "⚠️ Broadcast message missing data object")
+                            }
                         }
                         else -> {
                             android.util.Log.d("WebSocket", "📨 Unknown message type: $type")
                         }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("WebSocket", "Failed to parse message: $text", e)
+                    android.util.Log.e("WebSocket", "❌ Failed to parse message: $text", e)
+                    e.printStackTrace()
                 }
             }
 

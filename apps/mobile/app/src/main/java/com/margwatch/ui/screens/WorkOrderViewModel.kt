@@ -153,7 +153,7 @@ class WorkOrderViewModel(
         workOrderId: String,
         status: String,
         description: String? = null,
-        cost: Double? = null,
+        progress: Int? = null,
         imageFiles: List<File>? = null,
         currentUserRole: UserRole,
         onResult: (Boolean, String?) -> Unit
@@ -190,7 +190,7 @@ class WorkOrderViewModel(
                     }
 
                     val result = repository.updateWorkOrderStatus(
-                        token, workOrderId, status, description, cost, imageFiles
+                        token, workOrderId, status, description, progress, imageFiles
                     )
                     result.onSuccess {
                         _uiState.update { it.copy(isLoading = false) }
@@ -224,19 +224,36 @@ class WorkOrderViewModel(
             return
         }
 
-        // Validate state transition to COMPLETED
+        // Workers can only complete work orders that are IN_PROGRESS
+        if (workOrder.status.name != WorkOrderStatus.IN_PROGRESS.name) {
+            val errorMessage = when (workOrder.status.name) {
+                WorkOrderStatus.ASSIGNED.name -> "Please start the work first by updating status to 'In Progress' before completing."
+                WorkOrderStatus.PENDING_REVIEW.name -> "This work order is already submitted for review and awaiting admin approval."
+                WorkOrderStatus.COMPLETED.name -> "This work order is already completed."
+                WorkOrderStatus.REJECTED.name -> "This work order has been rejected and cannot be completed."
+                else -> "Work order must be in 'In Progress' status to complete. Current status: ${workOrder.status.name}"
+            }
+            android.util.Log.e("WorkOrderViewModel", "Cannot complete work order: ${workOrder.status.name} -> PENDING_REVIEW. Work order must be IN_PROGRESS.")
+            showError(errorMessage)
+            onResult(false, errorMessage)
+            return
+        }
+
+        // Validate state transition to PENDING_REVIEW (workers complete work by submitting for review)
+        // The API endpoint will set status to PENDING_REVIEW, not COMPLETED
         val isValidTransition = StateMachineValidator.validateWorkOrderTransition(
             workOrder.status.name,
-            WorkOrderStatus.COMPLETED.name,
+            WorkOrderStatus.PENDING_REVIEW.name,
             currentUserRole
         )
 
         if (!isValidTransition) {
             val errorMessage = StateMachineValidator.getTransitionErrorMessage(
                 workOrder.status.name,
-                WorkOrderStatus.COMPLETED.name,
+                WorkOrderStatus.PENDING_REVIEW.name,
                 currentUserRole
             )
+            android.util.Log.e("WorkOrderViewModel", "Invalid transition: ${workOrder.status.name} -> PENDING_REVIEW for role: $currentUserRole")
             showError(errorMessage)
             onResult(false, errorMessage)
             return

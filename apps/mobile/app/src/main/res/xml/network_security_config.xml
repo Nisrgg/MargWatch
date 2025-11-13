@@ -13,11 +13,13 @@
             <certificates src="user" />
             <certificates src="system" />
         </trust-anchors>
-        <domain-config cleartextTrafficPermitted="true">
-            <domain includeSubdomains="true">localhost</domain>
-            <domain includeSubdomains="true">10.0.2.2</domain> <!-- Android Emulator localhost -->
-            <domain includeSubdomains="true">192.168.137.1</domain>
-            <domain includeSubdomains="true">192.168.29.161</domain>
-        </domain-config>
     </debug-overrides>
+
+    <!-- Domain-specific configuration for local development -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain> <!-- Android Emulator localhost -->
+        <domain includeSubdomains="true">192.168.137.1</domain>
+        <domain includeSubdomains="true">192.168.29.161</domain>
+    </domain-config>
 </network-security-config>

@@ -9,7 +9,7 @@ package com.margwatch.config
 object NetworkConfig {
     
     // Current WiFi IP Address - UPDATE THIS WHEN YOU CHANGE NETWORKS
-    const val CURRENT_WIFI_IP = "192.168.29.161"
+    const val CURRENT_WIFI_IP = "192.168.137.1"
     
     // Development URLs
     const val DEV_BASE_URL_EMULATOR = "http://10.0.2.2:5000/api/"

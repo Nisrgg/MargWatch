@@ -1,3 +1,7 @@
+// Load local.properties file
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +9,17 @@ plugins {
     id("com.google.gms.google-services")
     kotlin("kapt")
 }
+
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties = Properties()
+if (localPropertiesFile.exists()) {
+    FileInputStream(localPropertiesFile).use { input ->
+        localProperties.load(input)
+    }
+}
+
+// Get Google Maps API Key from local.properties
+val googleMapsApiKey = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
 
 android {
     namespace = "com.margwatch"
@@ -20,7 +35,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         // Secure API key injection from local.properties
-        manifestPlaceholders["mapsApiKey"] = findProperty("GOOGLE_MAPS_API_KEY") ?: ""
+        manifestPlaceholders["mapsApiKey"] = googleMapsApiKey
+        
+        // Log API key status (without exposing the actual key)
+        if (googleMapsApiKey.isNotEmpty()) {
+            println("✅ Google Maps API Key loaded from local.properties (length: ${googleMapsApiKey.length})")
+        } else {
+            println("⚠️ WARNING: GOOGLE_MAPS_API_KEY not found in local.properties!")
+            println("   Please add GOOGLE_MAPS_API_KEY=your_api_key_here to local.properties")
+        }
     }
 
     lint {
@@ -72,6 +95,9 @@ dependencies {
     
     // Navigation
     implementation(libs.navigation.compose)
+    
+    // Material Icons Extended
+    implementation("androidx.compose.material:material-icons-extended:1.6.0")
     
     // ViewModel
     implementation(libs.viewmodel.compose)

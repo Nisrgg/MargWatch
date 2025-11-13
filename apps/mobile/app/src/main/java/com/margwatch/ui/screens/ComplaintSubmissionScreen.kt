@@ -74,8 +74,17 @@ fun ComplaintSubmissionScreen(
     // Get UI state from ViewModel
     val uiState by complaintViewModel.uiState.collectAsState()
     
-    // Network connectivity state
-    var isOnline by remember { mutableStateOf(true) }
+    // Network connectivity state - monitor actual network status
+    val networkMonitor = remember { NetworkMonitor(context) }
+    var isOnline by remember { mutableStateOf(networkMonitor.isOnline()) }
+    
+    // Monitor network changes
+    LaunchedEffect(Unit) {
+        networkMonitor.networkFlow().collect { online ->
+            isOnline = online
+            android.util.Log.d("ComplaintSubmission", "Network status changed: $online")
+        }
+    }
 
     var currentLatitude by rememberSaveable { mutableStateOf<Float?>(null) }
     var currentLongitude by rememberSaveable { mutableStateOf<Float?>(null) }
@@ -109,17 +118,6 @@ fun ComplaintSubmissionScreen(
         }
     }
 
-    // Handle submission success - FCM will handle notifications
-    LaunchedEffect(uiState.submissionSuccess) {
-        if (uiState.submissionSuccess) {
-            // FCM notifications will be sent by the backend
-            // No local notification needed to avoid duplicates
-            android.util.Log.d("ComplaintSubmission", "Complaint submitted successfully - FCM notification will be sent")
-            // Reset the success state to avoid duplicate processing
-            complaintViewModel.submissionSuccessHandled()
-        }
-    }
-
     // Placeholder for location client
     val fusedLocationClient = remember { com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context) }
 
@@ -140,17 +138,27 @@ fun ComplaintSubmissionScreen(
         }
     }
 
+    // Handle submission success - single LaunchedEffect to avoid duplicates
     LaunchedEffect(uiState.submissionSuccess) {
         if (uiState.submissionSuccess) {
+            android.util.Log.d("ComplaintSubmission", "✅ Complaint submitted successfully!")
             showSuccess("Complaint Submitted Successfully!")
+            
+            // Reset the success state to avoid duplicate processing
             complaintViewModel.submissionSuccessHandled()
-            onNavigateBack() // Go back to previous screen (e.g., MainScreen)
+            
+            // Navigate back immediately - don't clear form data here to avoid showing "missing fields" message
+            // Form will be cleared when user navigates back to this screen next time
+            kotlinx.coroutines.delay(1000) // Short delay to show success message
+            onNavigateBack()
         }
     }
 
+    // Handle errors from ViewModel
     LaunchedEffect(uiState.error) {
-        uiState.error?.let {
-            showError(it)
+        uiState.error?.let { error ->
+            android.util.Log.e("ComplaintSubmission", "❌ Error from ViewModel: $error")
+            showError(error)
             complaintViewModel.clearError()
         }
     }
@@ -618,39 +626,126 @@ fun ComplaintSubmissionScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         
+                        // Button enabled state - simplified validation
+                        // Only check for essential requirements, not Gujarat bounds (too restrictive)
+                        val hasValidCoordinates = currentLatitude != null && currentLongitude != null && 
+                                currentLatitude != 0.0f && currentLongitude != 0.0f
+                        val hasImages = capturedImages.isNotEmpty()
+                        val hasAuthToken = authToken != null
+                        val isNotLoading = !uiState.isLoading
+                        
+                        val isButtonEnabled = isNotLoading && hasValidCoordinates && hasImages && hasAuthToken
+                        
+                        // Note: No coordinate restriction - allowing Pan India submissions
+                        
+                        // Determine what's missing for user feedback
+                        val missingRequirements = buildList {
+                            if (!hasValidCoordinates) add("Location")
+                            if (!hasImages) add("Photos")
+                            if (!hasAuthToken) add("Authentication")
+                        }
+                        
+                        // Log button state for debugging
+                        LaunchedEffect(currentLatitude, currentLongitude, capturedImages.size, authToken, uiState.isLoading, isOnline) {
+                            android.util.Log.d("ComplaintSubmission", "=== BUTTON STATE CHECK ===")
+                            android.util.Log.d("ComplaintSubmission", "  - isLoading: ${uiState.isLoading}")
+                            android.util.Log.d("ComplaintSubmission", "  - isOnline: $isOnline")
+                            android.util.Log.d("ComplaintSubmission", "  - currentLatitude: $currentLatitude")
+                            android.util.Log.d("ComplaintSubmission", "  - currentLongitude: $currentLongitude")
+                            android.util.Log.d("ComplaintSubmission", "  - hasValidCoordinates: $hasValidCoordinates")
+                            android.util.Log.d("ComplaintSubmission", "  - capturedImages.size: ${capturedImages.size}")
+                            android.util.Log.d("ComplaintSubmission", "  - authToken != null: $hasAuthToken")
+                            android.util.Log.d("ComplaintSubmission", "  - BUTTON ENABLED: $isButtonEnabled")
+                            if (!isButtonEnabled) {
+                                android.util.Log.d("ComplaintSubmission", "  - Missing: ${missingRequirements.joinToString(", ")}")
+                            }
+                        }
+                        
+                        // Show helpful message about what's missing
+                        if (!isButtonEnabled && !uiState.isLoading) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        contentDescription = "Missing requirements",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (missingRequirements.isEmpty()) {
+                                            "Please complete all required fields"
+                                        } else {
+                                            "Missing: ${missingRequirements.joinToString(", ")}"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        
                         GradientButton(
-                            text = if (uiState.isLoading) "Submitting..." else "Submit Report",
+                            text = when {
+                                uiState.isLoading -> "Submitting..."
+                                !isButtonEnabled -> "Complete Required Fields"
+                                else -> "Submit Report"
+                            },
                             onClick = {
+                                // Double-check button is enabled before processing
+                                if (!isButtonEnabled) {
+                                    android.util.Log.w("ComplaintSubmission", "Button clicked but disabled - this shouldn't happen")
+                                    val message = when {
+                                        !hasValidCoordinates -> "Please get your location first"
+                                        !hasImages -> "Please take at least one photo"
+                                        !hasAuthToken -> "Please login first"
+                                        uiState.isLoading -> "Please wait for current submission to complete"
+                                        else -> "Please complete all required fields"
+                                    }
+                                    showError(message)
+                                    return@GradientButton
+                                }
+                                
                                 android.util.Log.d("ComplaintSubmission", "=== SUBMIT BUTTON CLICKED ===")
                                 android.util.Log.d("ComplaintSubmission", "Current state:")
                                 android.util.Log.d("ComplaintSubmission", "  - currentLatitude: $currentLatitude")
                                 android.util.Log.d("ComplaintSubmission", "  - currentLongitude: $currentLongitude")
                                 android.util.Log.d("ComplaintSubmission", "  - capturedImages.size: ${capturedImages.size}")
-                                android.util.Log.d("ComplaintSubmission", "  - authToken: Present")
+                                android.util.Log.d("ComplaintSubmission", "  - authToken: ${if (authToken != null) "Present" else "NULL"}")
                                 android.util.Log.d("ComplaintSubmission", "  - isOnline: $isOnline")
                                 
                                 // Validate coordinates before submission
                                 if (currentLatitude != null && currentLongitude != null) {
                                     android.util.Log.d("ComplaintSubmission", "Coordinates are not null, validating...")
                                     
-                                    // Check for invalid coordinates (0.0 or outside Gujarat bounds)
                                     val lat = currentLatitude!!
                                     val lng = currentLongitude!!
-                                    val isValidCoordinate = lat != 0.0f && lng != 0.0f &&
-                                            lat in 20.1f..24.7f && lng in 68.1f..74.4f
+                                    
+                                    // Basic coordinate validation (not 0.0)
+                                    val hasValidCoordinates = lat != 0.0f && lng != 0.0f
                                     
                                     android.util.Log.d("ComplaintSubmission", "Coordinate validation:")
-                                    android.util.Log.d("ComplaintSubmission", "  - lat != 0.0f: ${lat != 0.0f}")
-                                    android.util.Log.d("ComplaintSubmission", "  - lng != 0.0f: ${lng != 0.0f}")
-                                    android.util.Log.d("ComplaintSubmission", "  - lat in Gujarat bounds: ${lat in 20.1f..24.7f}")
-                                    android.util.Log.d("ComplaintSubmission", "  - lng in Gujarat bounds: ${lng in 68.1f..74.4f}")
-                                    android.util.Log.d("ComplaintSubmission", "  - isValidCoordinate: $isValidCoordinate")
+                                    android.util.Log.d("ComplaintSubmission", "  - lat: $lat, lng: $lng")
+                                    android.util.Log.d("ComplaintSubmission", "  - hasValidCoordinates: $hasValidCoordinates")
                                     
-                                    if (!isValidCoordinate) {
-                                        android.util.Log.e("ComplaintSubmission", "INVALID COORDINATES - Stopping submission")
-                                        showError("Invalid GPS coordinates. Please ensure location services are enabled and you are within Gujarat, India.")
+                                    if (!hasValidCoordinates) {
+                                        android.util.Log.e("ComplaintSubmission", "INVALID COORDINATES (0.0) - Stopping submission")
+                                        showError("Invalid GPS coordinates. Please ensure location services are enabled and try getting location again.")
                                         return@GradientButton
                                     }
+                                    
+                                    // Note: No coordinate restriction - allowing Pan India submissions
                                     
                                     if (authToken != null && capturedImages.isNotEmpty()) {
                                         android.util.Log.d("ComplaintSubmission", "All validations passed, proceeding with submission...")
@@ -760,13 +855,9 @@ fun ComplaintSubmissionScreen(
                                 android.util.Log.e("ComplaintSubmission", "COORDINATES ARE NULL - Stopping submission")
                                 showError("Please get your location first by tapping 'Get Location' or 'Select on Map'")
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !uiState.isLoading && 
-                                currentLatitude != null && currentLongitude != null && 
-                                currentLatitude != 0.0f && currentLongitude != 0.0f &&
-                                (currentLatitude ?: 0f) in 20.1f..24.7f && (currentLongitude ?: 0f) in 68.1f..74.4f &&
-                                capturedImages.isNotEmpty() && authToken != null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = isButtonEnabled
                         )
                 }
             }
