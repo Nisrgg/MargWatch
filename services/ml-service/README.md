@@ -144,6 +144,8 @@ Returns detailed model configuration and capabilities.
 
 ## 🔍 Testing
 
+### Quick Start Testing
+
 The service includes a comprehensive test suite (`test_ml_service.py`) that validates:
 
 - ✅ Health endpoint functionality
@@ -152,10 +154,46 @@ The service includes a comprehensive test suite (`test_ml_service.py`) that vali
 - ✅ Base64 image predictions
 - ✅ Batch processing capabilities
 
-Run tests with:
+Run automated tests with:
 ```bash
 python test_ml_service.py
 ```
+
+### Comprehensive Testing Guide
+
+For detailed testing instructions, examples, and troubleshooting, see:
+- **Complete Testing Guide**: `docs/ML_SERVICE_TESTING_GUIDE.md`
+
+The guide includes:
+- Step-by-step endpoint testing
+- Examples using curl, Python, JavaScript, Postman
+- Testing with real images
+- Performance testing
+- Troubleshooting common issues
+
+### Quick Test Examples
+
+**Health Check**:
+```bash
+curl http://localhost:8000/health
+```
+
+**Single Image Prediction**:
+```bash
+curl -X POST http://localhost:8000/predict \
+  -F "file=@path/to/your/image.jpg"
+```
+
+**Batch Prediction**:
+```bash
+curl -X POST http://localhost:8000/predict/batch \
+  -F "file=@image1.jpg" \
+  -F "file=@image2.jpg"
+```
+
+**Interactive API Documentation**:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
 ## 📈 Performance
 
