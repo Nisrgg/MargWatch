@@ -31,6 +31,21 @@ export const uploadMultipleImages = multer({
   },
 }).array('images', 5);
 
+// Conditional multer middleware - only processes multipart/form-data
+export const conditionalUploadMultipleImages = (req: Request, res: Response, next: NextFunction) => {
+  const contentType = req.headers['content-type'] || '';
+  
+  // If content-type is multipart/form-data, use multer, otherwise skip
+  if (contentType.includes('multipart/form-data')) {
+    console.log('📤 Processing multipart/form-data request with multer');
+    return uploadMultipleImages(req, res, next);
+  }
+  
+  // For JSON or other requests, skip multer and continue
+  console.log('📤 Skipping multer for content-type:', contentType);
+  next();
+};
+
 // Cloudinary upload middleware for multiple images
 export const uploadToCloudinary = async (req: Request, res: Response, next: NextFunction) => {
   try {

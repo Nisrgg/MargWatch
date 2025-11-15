@@ -550,8 +550,14 @@ export class WorkOrderController {
    */
   static async updateWorkStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
+      // Debug logging
+      console.log('Update work status - Request body:', JSON.stringify(req.body));
+      console.log('Update work status - Content-Type:', req.headers['content-type']);
+      console.log('Update work status - Status value:', req.body?.status, 'Type:', typeof req.body?.status);
+      
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.error('Validation errors:', errors.array());
         res.status(400).json(ControllerUtils.createResponse(
           false,
           'Validation failed',
@@ -611,6 +617,28 @@ export class WorkOrderController {
         return;
       }
 
+      // Validate state transition using StateMachineValidator
+      if (!StateMachineValidator.validateWorkOrderTransition(
+        workOrder.status as WorkOrderStatus,
+        status as WorkOrderStatus,
+        req.user!.role as UserRole
+      )) {
+        res.status(409).json(ControllerUtils.createResponse(
+          false,
+          `Invalid state transition from ${workOrder.status} to ${status}`
+        ));
+        return;
+      }
+
+      // Workers cannot directly set status to COMPLETED - they must use the complete endpoint
+      if (status === WorkOrderStatus.COMPLETED && req.user!.role === UserRole.WORKER) {
+        res.status(400).json(ControllerUtils.createResponse(
+          false,
+          'Workers cannot directly set status to COMPLETED. Please use the complete endpoint.'
+        ));
+        return;
+      }
+
       // Update work order
       const updateData: any = { status };
       
@@ -618,7 +646,8 @@ export class WorkOrderController {
         updateData.startedAt = new Date();
       }
       
-      if (status === WorkOrderStatus.COMPLETED && workOrder.status !== WorkOrderStatus.COMPLETED) {
+      if (status === WorkOrderStatus.PENDING_REVIEW && workOrder.status !== WorkOrderStatus.PENDING_REVIEW) {
+        // When transitioning to PENDING_REVIEW, update complaint status
         updateData.completedAt = new Date();
       }
 
@@ -638,23 +667,23 @@ export class WorkOrderController {
         },
       });
 
-      // Update complaint status if work order is completed
-      if (status === ComplaintStatus.COMPLETED) {
+      // Update complaint status based on work order status
+      if (status === WorkOrderStatus.PENDING_REVIEW) {
         await prisma.complaint.update({
           where: { id: workOrder.complaintId },
-          data: { status: ComplaintStatus.COMPLETED },
+          data: { status: ComplaintStatus.PENDING_REVIEW },
         });
 
-        // Notify user that work is completed
+        // Notify user that work is pending review
         await FirebaseNotificationService.getInstance().createAndSendNotification(
           workOrder.complaint.userId,
-          'Work Completed',
+          'Work Pending Review',
           `Work on your complaint "${workOrder.complaint.title}" has been completed and is awaiting admin approval`,
-          'work_completed',
+          'work_pending_review',
           {
             workOrderId: id,
             complaintId: workOrder.complaintId,
-            status: 'COMPLETED'
+            status: 'PENDING_REVIEW'
           }
         );
 
@@ -669,11 +698,11 @@ export class WorkOrderController {
             admins.map(admin => admin.id),
             'Work Completed - Awaiting Approval',
             `Work on "${workOrder.complaint.title}" has been completed and is awaiting admin approval`,
-            'work_completed',
+            'work_pending_review',
             {
               workOrderId: id,
               complaintId: workOrder.complaintId,
-              status: 'COMPLETED'
+              status: 'PENDING_REVIEW'
             }
           );
         }
@@ -770,12 +799,9 @@ export class WorkOrderController {
       const imageUrls = req.body.imageUrls || [];
       const uploadedImages = req.body.uploadedImages || [];
 
-      // Check if work order exists and belongs to the worker
-      const workOrder = await prisma.workOrder.findFirst({
-        where: {
-          id,
-          workerId,
-        },
+      // Check if work order exists
+      const workOrder = await prisma.workOrder.findUnique({
+        where: { id },
         include: {
           complaint: {
             include: {
@@ -793,6 +819,15 @@ export class WorkOrderController {
       });
 
       if (!workOrder) {
+        res.status(404).json(ControllerUtils.createResponse(
+          false,
+          'Work order not found'
+        ));
+        return;
+      }
+
+      // Check if work order belongs to the worker
+      if (workOrder.workerId !== workerId) {
         res.status(403).json(ControllerUtils.createResponse(
           false,
           'Work order not found or you are not authorized to access this work order'
@@ -800,21 +835,25 @@ export class WorkOrderController {
         return;
       }
 
+      // Validate that work order is in a state that can be completed
       if (workOrder.status !== WorkOrderStatus.IN_PROGRESS) {
         res.status(400).json(ControllerUtils.createResponse(
           false,
-          'Work order must be in progress status to complete'
+          `Work order must be in ${WorkOrderStatus.IN_PROGRESS} status to complete. Current status: ${workOrder.status}`
         ));
         return;
       }
 
-      // Update work order status to completed (awaiting admin approval)
+      // Update work order: set workerCompleted flag, status to PENDING_REVIEW, and adminApprovalStatus to PENDING
       const updatedWorkOrder = await prisma.workOrder.update({
         where: { id },
         data: {
           status: WorkOrderStatus.PENDING_REVIEW,
+          workerCompleted: true, // Set worker completion flag
+          adminApprovalStatus: 'PENDING', // Set admin approval status to pending
           workDescription: description,
           cost: cost ? parseFloat(cost) : null,
+          completedAt: new Date(), // Set completion timestamp
         },
         include: {
           complaint: {
@@ -826,37 +865,37 @@ export class WorkOrderController {
         },
       });
 
-      // Update complaint status to completed (awaiting admin approval)
+      // Update complaint status to PENDING_REVIEW (awaiting admin approval)
       await prisma.complaint.update({
         where: { id: workOrder.complaintId },
-        data: { status: ComplaintStatus.COMPLETED },
+        data: { status: ComplaintStatus.PENDING_REVIEW },
       });
 
       // Create final work order update with proof images
       await prisma.workOrderUpdate.create({
         data: {
           workOrderId: id,
-          status: ComplaintStatus.COMPLETED,
+          status: WorkOrderStatus.PENDING_REVIEW, // Use WorkOrderStatus, not ComplaintStatus
           description: description || 'Work completed successfully',
           progress: 100,
           imageUrl: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
         },
       });
 
-      // Notify user that work is completed
+      // Notify user that work is completed and awaiting admin approval
       await FirebaseNotificationService.getInstance().createAndSendNotification(
         workOrder.complaint.userId,
-        'Work Completed',
+        'Work Completed - Awaiting Approval',
         `Work on your complaint "${workOrder.complaint.title}" has been completed and is awaiting admin approval`,
-        'work_completed',
+        'work_pending_review',
         {
           workOrderId: id,
           complaintId: workOrder.complaintId,
-          status: 'COMPLETED'
+          status: 'PENDING_REVIEW'
         }
       );
 
-      // Notify all admins about completed work
+      // Notify all admins about completed work awaiting final approval
       const admins = await prisma.user.findMany({
         where: { role: 'ADMIN' },
         select: { id: true }
@@ -867,11 +906,11 @@ export class WorkOrderController {
           admins.map(admin => admin.id),
           'Work Completed - Awaiting Final Approval',
           `Work on "${workOrder.complaint.title}" has been completed and is awaiting final admin approval`,
-          'work_completed',
+          'work_pending_review',
           {
             workOrderId: id,
             complaintId: workOrder.complaintId,
-            status: 'COMPLETED'
+            status: 'PENDING_REVIEW'
           }
         );
       }
@@ -898,7 +937,8 @@ export class WorkOrderController {
 
       const workOrders = await prisma.workOrder.findMany({
         where: {
-          status: ComplaintStatus.COMPLETED,
+          status: WorkOrderStatus.PENDING_REVIEW,
+          workerCompleted: true,
           adminApprovalStatus: 'PENDING'
         },
         include: {
@@ -1028,23 +1068,41 @@ export class WorkOrderController {
         return;
       }
 
+      // Check if worker has completed the work
+      if (!workOrder.workerCompleted) {
+        console.log('Work order not completed by worker yet');
+        res.status(400).json(ControllerUtils.createResponse(
+          false,
+          'Worker has not marked this work order as completed yet'
+        ));
+        return;
+      }
+
+      // Prepare update data
+      const updateData: any = {
+        adminApprovalStatus: approvalStatus,
+        adminApprovedBy: adminId,
+        adminApprovedAt: new Date(),
+        adminRejectionReason: approvalStatus === 'REJECTED' ? rejectionReason : null,
+      };
+
+      // If approved, check if both workerCompleted and adminApprovalStatus are true, then set status to COMPLETED
+      if (approvalStatus === 'APPROVED') {
+        // Both workerCompleted and admin approval are true, so set status to COMPLETED
+        updateData.status = WorkOrderStatus.COMPLETED;
+        if (!workOrder.completedAt) {
+          updateData.completedAt = new Date();
+        }
+      } else if (approvalStatus === 'REJECTED') {
+        // If rejected, reset workerCompleted flag and set status back to IN_PROGRESS
+        updateData.status = WorkOrderStatus.IN_PROGRESS;
+        updateData.workerCompleted = false;
+      }
+
       // Update work order with admin decision
       const updatedWorkOrder = await prisma.workOrder.update({
         where: { id: workOrderId },
-        data: {
-          adminApprovalStatus: approvalStatus,
-          adminApprovedBy: adminId,
-          adminApprovedAt: new Date(),
-          adminRejectionReason: approvalStatus === 'REJECTED' ? rejectionReason : null,
-          // If approved, update complaint status to COMPLETED
-          ...(approvalStatus === 'APPROVED' && {
-            complaint: {
-              update: {
-                status: ComplaintStatus.COMPLETED
-              }
-            }
-          })
-        },
+        data: updateData,
         include: {
           complaint: {
             include: {
@@ -1072,6 +1130,21 @@ export class WorkOrderController {
       });
 
       console.log(`Work order ${workOrderId} ${approvalStatus.toLowerCase()}ed successfully`);
+
+      // Update complaint status based on approval decision
+      if (approvalStatus === 'APPROVED') {
+        // Both workerCompleted and admin approval are true, so set complaint status to COMPLETED
+        await prisma.complaint.update({
+          where: { id: workOrder.complaintId },
+          data: { status: ComplaintStatus.COMPLETED },
+        });
+      } else if (approvalStatus === 'REJECTED') {
+        // If rejected, set complaint status back to PROCESSING
+        await prisma.complaint.update({
+          where: { id: workOrder.complaintId },
+          data: { status: ComplaintStatus.PROCESSING },
+        });
+      }
 
       // Send notifications
       try {
@@ -1199,11 +1272,20 @@ export class WorkOrderController {
         return;
       }
 
+      // Check if worker has completed the work
+      if (!workOrder.workerCompleted) {
+        res.status(400).json(ControllerUtils.createResponse(
+          false,
+          'Worker has not marked this work order as completed yet'
+        ));
+        return;
+      }
+
       let updatedWorkOrder;
       let updatedComplaint;
 
       if (approved) {
-        // Approve the work order
+        // Approve the work order - both workerCompleted and admin approval are true, so set status to COMPLETED
         updatedWorkOrder = await prisma.workOrder.update({
           where: { id },
           data: {
@@ -1211,7 +1293,7 @@ export class WorkOrderController {
             adminApprovalStatus: 'APPROVED',
             adminApprovedBy: adminId,
             adminApprovedAt: new Date(),
-            completedAt: new Date(),
+            completedAt: workOrder.completedAt || new Date(),
             qualityScore: qualityScore || null,
           },
         });
@@ -1269,7 +1351,7 @@ export class WorkOrderController {
         }
 
       } else {
-        // Reject the work order
+        // Reject the work order - reset workerCompleted flag and set status back to IN_PROGRESS
         updatedWorkOrder = await prisma.workOrder.update({
           where: { id },
           data: {
@@ -1278,6 +1360,7 @@ export class WorkOrderController {
             adminApprovedBy: adminId,
             adminApprovedAt: new Date(),
             adminRejectionReason: comments,
+            workerCompleted: false, // Reset worker completion flag
             reworkCount: { increment: 1 },
           },
         });
@@ -1355,7 +1438,26 @@ export const completeWorkOrderValidation = [
 ];
 
 export const updateWorkStatusValidation = [
-  body('status').isIn(Object.values(WorkOrderStatus)).withMessage('Valid status is required'),
+  body('status')
+    .notEmpty()
+    .withMessage('Status is required')
+    .custom((value) => {
+      // Normalize the value (trim whitespace, convert to string)
+      const normalizedValue = String(value).trim();
+      const validStatuses = [
+        WorkOrderStatus.ASSIGNED,
+        WorkOrderStatus.IN_PROGRESS,
+        WorkOrderStatus.PENDING_REVIEW,
+        WorkOrderStatus.COMPLETED,
+        WorkOrderStatus.REJECTED
+      ];
+      
+      if (!validStatuses.includes(normalizedValue as WorkOrderStatus)) {
+        console.error('Invalid status received:', normalizedValue, 'Valid statuses:', validStatuses);
+        throw new Error(`Valid status is required. Must be one of: ${validStatuses.join(', ')}. Received: ${normalizedValue}`);
+      }
+      return true;
+    }),
   body('description').optional().trim(),
   body('progress').optional().custom((value) => {
     if (value === undefined || value === null || value === '') return true;

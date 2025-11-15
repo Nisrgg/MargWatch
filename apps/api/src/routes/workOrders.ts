@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { WorkOrderController, createWorkOrderValidation, updateWorkOrderValidation, completeWorkOrderValidation, updateWorkStatusValidation, approveWorkOrderValidation, reviewWorkOrderValidation } from '../controllers/workOrderController';
 import { authenticateToken, requireAdmin, requireWorker, requireWorkerOrAdmin } from '../middleware/auth';
 import { handleValidationErrors } from '../middleware/errorHandler';
-import { uploadSingleImage, uploadSingleToCloudinary, uploadMultipleImages, uploadToCloudinary } from '../middleware/upload';
+import { uploadSingleImage, uploadSingleToCloudinary, uploadMultipleImages, uploadToCloudinary, conditionalUploadMultipleImages } from '../middleware/upload';
 
 const router = Router();
 
@@ -18,7 +18,7 @@ router.post('/approve', requireAdmin, approveWorkOrderValidation, handleValidati
 // Worker routes
 router.get('/my-orders', requireWorker, WorkOrderController.getWorkerOrders);
 router.get('/:id/details', requireWorkerOrAdmin, WorkOrderController.getWorkOrderDetails);
-router.put('/:id/status', requireWorker, uploadMultipleImages, uploadToCloudinary, updateWorkStatusValidation, handleValidationErrors, WorkOrderController.updateWorkStatus);
-router.put('/:id/complete', requireWorker, uploadMultipleImages, uploadToCloudinary, completeWorkOrderValidation, handleValidationErrors, WorkOrderController.completeWorkOrderEnhanced);
+router.put('/:id/status', requireWorker, conditionalUploadMultipleImages, uploadToCloudinary, updateWorkStatusValidation, handleValidationErrors, WorkOrderController.updateWorkStatus);
+router.put('/:id/complete', requireWorker, conditionalUploadMultipleImages, uploadToCloudinary, completeWorkOrderValidation, handleValidationErrors, WorkOrderController.completeWorkOrderEnhanced);
 
 export default router;

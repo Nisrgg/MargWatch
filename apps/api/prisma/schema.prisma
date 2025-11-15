@@ -131,6 +131,9 @@ model WorkOrder {
   adminApprovedAt     DateTime?
   adminRejectionReason String? // Reason for rejection if rejected
   
+  // Worker completion flag
+  workerCompleted     Boolean  @default(false) // Set to true when worker marks work as completed
+  
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
