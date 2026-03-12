@@ -220,8 +220,8 @@ config/production.json
 
 # ML service – data, outputs, papers, reports
 services/ml-service/*.pdf
-services/ml-service/annotations/
 services/ml-service/images/
+services/ml-service/annotations/
 services/ml-service/outputs/
 services/ml-service/test_images/
 services/ml-service/preprocess_report.json
