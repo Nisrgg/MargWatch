@@ -217,3 +217,24 @@ Thumbs.db
 # Configuration files with sensitive data
 config/local.json
 config/production.json
+
+# ML service – data, outputs, papers, reports
+services/ml-service/*.pdf
+services/ml-service/annotations/
+services/ml-service/images/
+services/ml-service/outputs/
+services/ml-service/test_images/
+services/ml-service/preprocess_report.json
+services/ml-service/preprocess_dryrun_log.txt
+services/ml-service/rescuenet-pspnet101.yaml
+
+# Root-level dataset and report clutter
+data.yaml
+dataset_manifest.csv
+duplicates.csv
+failure_report.txt
+install_log.txt
+license_warnings.txt
+preprocess_report.json
+remap_report.json
+smoke_dataset/

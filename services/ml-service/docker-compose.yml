@@ -1,31 +1,24 @@
-version: '3.8'
-
 services:
-  ml-service:
+  ml-pipeline:
     build:
-      context: ./ml-service
+      context: .
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - MODEL_PATH=/app/models/road_issue_model.pkl
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
+    image: margwatch-ml-pipeline:latest
+    container_name: margwatch-ml-pipeline
     volumes:
-      - ./ml-service:/app
-      - ./models:/app/models  # Mount models directory if you have trained models
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - margwatch-network
-
-networks:
-  margwatch-network:
-    external: true
-
-
+      # Mount project root for access to all scripts
+      - ../..:/workspace:rw
+      # Mount outputs directory
+      - ./outputs:/app/outputs:rw
+      # Mount data directory (for datasets)
+      - ./data:/app/data:rw
+      # Mount models directory
+      - ./models:/app/models:rw
+    working_dir: /workspace
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/workspace/services/ml-service
+    stdin_open: true
+    tty: true
+    # Keep container running
+    command: tail -f /dev/null

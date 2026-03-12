@@ -20,6 +20,9 @@
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain> <!-- Android Emulator localhost -->
         <domain includeSubdomains="true">192.168.137.1</domain>
+        <domain includeSubdomains="true">10.222.44.14</domain>
+        <domain includeSubdomains="true">172.25.166.92</domain>
+
         <domain includeSubdomains="true">192.168.29.161</domain>
     </domain-config>
 </network-security-config>
