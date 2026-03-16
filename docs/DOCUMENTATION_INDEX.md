@@ -376,10 +376,59 @@ For code-specific questions:
 
 ---
 
+---
+
+## 5. Technical Audit & React Native Migration
+
+The following documents were produced by a full technical audit to support rewriting the Android app in React Native. They describe the live codebase and migration strategy.
+
+#### `SYSTEM_ARCHITECTURE.md`
+**Purpose**: Repository structure, runtime architecture, and how mobile, admin, API, ML, Cloudinary, FCM, and WebSockets interact.
+
+**Use When**: Understanding the full system before migration or onboarding.
+
+#### `MOBILE_ARCHITECTURE.md`
+**Purpose**: Android app architecture (MVVM, Repository), screen inventory, navigation, StateFlow, offline persistence, image/location/FCM implementation.
+
+**Use When**: Porting Android features to React Native or understanding mobile data flow.
+
+#### `API_REFERENCE.md`
+**Purpose**: Full API endpoint inventory (method, route, purpose, auth, used by); complaint submit flow; image upload; ML pipeline; worker status/complete; notifications.
+
+**Use When**: Implementing or testing API integration in RN or any client.
+
+#### `DATABASE_SCHEMA.md`
+**Purpose**: Prisma schema (tables, relations, enums), complaint/work order/notification lifecycles and state transitions.
+
+**Use When**: Understanding data model and valid state transitions.
+
+#### `ML_SERVICE.md`
+**Purpose**: ML service endpoints, model loading, preprocessing/inference, response format, how the backend calls it, and integration note (file vs base64).
+
+**Use When**: Integrating or debugging ML; aligning backend and ML contract.
+
+#### `REACT_NATIVE_MIGRATION_PLAN.md`
+**Purpose**: Shared types for RN, external integrations, migration risks, what must be rewritten, Android→RN mapping, suggested RN libraries, app structure, checklist.
+
+**Use When**: Planning or executing the React Native rewrite.
+
+#### `RUN_WITHOUT_DOCKER.md`
+**Purpose**: Run the API and Admin Portal with Node.js only (no Docker). ML service is bypassed with hardcoded values.
+
+**Use When**: Local development without Docker; running API and admin-portal via `npm run dev`.
+
+#### `MOBILE_RN_SETUP.md`
+**Purpose**: Step-by-step setup for the React Native app (deps, native project, Firebase, FCM, API URL). Includes which steps need your action and what to provide (e.g. `google-services.json`, computer IP).
+
+**Use When**: Setting up and running the RN app on device/emulator; configuring Firebase and API URL.
+
+---
+
 ## Summary
 
 This documentation suite provides comprehensive coverage of the MargWatch project:
 
+- **Technical audit (migration)**: SYSTEM_ARCHITECTURE.md, MOBILE_ARCHITECTURE.md, API_REFERENCE.md, DATABASE_SCHEMA.md, ML_SERVICE.md, REACT_NATIVE_MIGRATION_PLAN.md
 - **ML_SERVICE_DETAILED.md**: Complete ML service documentation (every file, every function)
 - **PROJECT_OVERVIEW.md**: High-level system overview
 - **ARCHITECTURE.md**: Detailed architecture and design patterns

@@ -80,6 +80,13 @@ npx prisma db seed
 
 That's it! The entire system is now running. 🎉
 
+### Run without Docker (Node only)
+
+To run the **API** and **Admin Portal** with Node.js only (no Docker, ML service disabled with hardcoded bypass):
+
+- See **[docs/RUN_WITHOUT_DOCKER.md](docs/RUN_WITHOUT_DOCKER.md)** for commands and setup.
+- For the **React Native app** (device/emulator, Firebase, API URL): see **[docs/MOBILE_RN_SETUP.md](docs/MOBILE_RN_SETUP.md)**.
+
 ## 🌐 Access Points
 
 Once the system is running, you can access:

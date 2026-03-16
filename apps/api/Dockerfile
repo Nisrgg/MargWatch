@@ -1,75 +1,62 @@
-# Use Node.js 18 LTS as base image
 FROM node:18-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Install dependencies for Prisma
 RUN apk add --no-cache openssl
 
-# Configure npm for better network reliability
 RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000 && \
     npm config set maxsockets 1
 
-# --- FIX START ---
-# Copy the shared-types package into a local packages directory
-# This makes it available to npm install
-COPY ../../packages/shared-types ./packages/shared-types
+# Copy shared-types from monorepo (build context is repo root)
+COPY packages/shared-types ./packages/shared-types
 
-# Build the shared-types package first
 WORKDIR /app/packages/shared-types
-RUN npm install || (sleep 10 && npm install) || (sleep 20 && npm install)
+RUN npm install --legacy-peer-deps --include=dev || (sleep 10 && npm install --legacy-peer-deps --include=dev) || (sleep 20 && npm install --legacy-peer-deps --include=dev)
 RUN npm run build
+
 WORKDIR /app
-# --- FIX END ---
 
-# Copy package files
-COPY apps/api/package*.json ./
+# Copy API package.json from monorepo
+COPY apps/api/package.json ./package.json
 
-# Install ALL dependencies (including dev dependencies for build)
-# Now it can find the local shared-types package
-# Retry logic for network issues
-RUN npm install || (sleep 10 && npm install) || (sleep 20 && npm install)
+# Fix local file path for shared-types inside container
+RUN sed -i 's|\"file:../../packages/shared-types\"|\"file:./packages/shared-types\"|g' package.json
+
+# Install API dependencies (including dev) with legacy peer deps to resolve multer/cloudinary
+RUN npm install --legacy-peer-deps --include=dev || (sleep 10 && npm install --legacy-peer-deps --include=dev) || (sleep 20 && npm install --legacy-peer-deps --include=dev)
 
 # Copy Prisma schema
 COPY apps/api/prisma ./prisma/
-
-# Generate Prisma client
 RUN npx prisma generate
 
-# Copy the rest of the source code
+# Copy the rest of API source code (relative to repo root)
 COPY apps/api/ .
 
-# Copy shared-types package to runtime
-COPY ../../packages/shared-types ./packages/shared-types
+# Ensure shared-types path is still correct after COPY (package.json overwritten)
+RUN sed -i 's|\"file:../../packages/shared-types\"|\"file:./packages/shared-types\"|g' package.json && rm -f package-lock.json
 
-# Reinstall dependencies to ensure shared-types is properly linked
-# Retry logic for network issues
-RUN npm install || (sleep 10 && npm install) || (sleep 20 && npm install)
+# Reinstall to make sure local package is linked with the corrected path
+RUN npm install --legacy-peer-deps --include=dev || (sleep 10 && npm install --legacy-peer-deps --include=dev) || (sleep 20 && npm install --legacy-peer-deps --include=dev)
 
-# Build TypeScript
+# Regenerate Prisma client after reinstall (reinstall overwrites generated client with vanilla one)
+RUN npx prisma generate
+
 RUN npm run build
 
-# Copy healthcheck script to dist
 COPY apps/api/healthcheck.js dist/
 
-# Expose port
 EXPOSE 5000
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 && \
+    chown -R nodejs:nodejs /app
 
-# Change ownership of the app directory
-RUN chown -R nodejs:nodejs /app
 USER nodejs
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node dist/healthcheck.js || exit 1
 
-# Start the application directly
 CMD ["npm", "start"]

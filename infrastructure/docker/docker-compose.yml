@@ -1,3 +1,6 @@
+# Build context is repo root (../..). Use root .dockerignore to keep context small.
+# For faster builds, enable BuildKit: set DOCKER_BUILDKIT=1 (or "setx DOCKER_BUILDKIT 1" on Windows).
+
 services:
   # PostgreSQL Database - Local Development (for testing)
   # postgres:

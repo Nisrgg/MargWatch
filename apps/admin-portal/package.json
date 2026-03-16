@@ -11,7 +11,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.1.5",
-    "@margwatch/shared-types": "file:./packages/shared-types",
+    "@margwatch/shared-types": "file:../../packages/shared-types",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
     "@radix-ui/react-scroll-area": "^1.2.10",
