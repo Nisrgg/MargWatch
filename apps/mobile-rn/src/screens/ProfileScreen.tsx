@@ -12,6 +12,8 @@ import { FormSection } from '../components/forms/FormSection';
 import { useAuth } from '../hooks/useAuth';
 import { useProfileForm } from '../hooks/useProfileForm';
 import { useSnackbar } from '../components/feedback/SnackbarProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TouchableOpacity, Text } from 'react-native';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Profile'>;
 
@@ -31,9 +33,25 @@ export default function ProfileScreen({ navigation }: Props) {
     }
   }, [submit, showSuccess, showError]);
 
+  const handleResetDemo = useCallback(async () => {
+    try {
+      await AsyncStorage.removeItem('demo_complaints');
+      showSuccess('Demo data reset. It will reload on next open.');
+    } catch (error) {
+      showError('Failed to reset demo data.');
+    }
+  }, [showSuccess, showError]);
+
   return (
     <ScreenContainer>
-      <SectionHeader title="Profile" />
+      <SectionHeader
+        title="Profile"
+        right={
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={{ color: '#F97316', fontWeight: '600' }}>{'\u2039'} Back</Text>
+          </TouchableOpacity>
+        }
+      />
       <ScreenState loading={loading}>
         <ScreenBody>
           <ProfileHeader user={user ?? null} />

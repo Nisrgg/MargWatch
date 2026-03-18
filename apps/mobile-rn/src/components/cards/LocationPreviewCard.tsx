@@ -19,7 +19,11 @@ export function LocationPreviewCard({
     return (
       <SectionCard>
         <Text style={styles.title}>Location</Text>
-        <Text style={styles.placeholder}>No location selected.</Text>
+        {address ? (
+          <Text style={styles.address}>{address}</Text>
+        ) : (
+          <Text style={styles.placeholder}>No location selected.</Text>
+        )}
       </SectionCard>
     );
   }

@@ -4,7 +4,6 @@ import { prisma } from '../config/database';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { ComplaintStatus, WorkOrderStatus, UserRole } from '@margwatch/shared-types';
 import { FirebaseNotificationService } from '../services/firebaseNotificationService';
-import { WebSocketService } from '../services/websocketService';
 import { StateMachineValidator } from '../utils/stateMachineValidator';
 
 export class AdminApprovalController {
@@ -244,28 +243,6 @@ export class AdminApprovalController {
         return;
       }
 
-      // Send WebSocket notifications for real-time updates
-      try {
-        const wsService = WebSocketService.getInstance();
-        
-        // Broadcast complaint update to all connected users
-        wsService.broadcast({
-          type: 'complaint_update',
-          data: {
-            complaintId: updatedComplaint.id,
-            status: updatedComplaint.status,
-            action: action,
-            workOrderId: workOrder?.id,
-            updatedAt: updatedComplaint.updatedAt,
-          },
-          timestamp: new Date().toISOString(),
-        });
-        
-        console.log(`📡 WebSocket notification sent for complaint ${action}`);
-      } catch (wsError) {
-        console.error('Failed to send WebSocket notification:', wsError);
-        // Continue with response even if WebSocket fails
-      }
 
       const response: ApiResponse = {
         success: true,
@@ -582,28 +559,6 @@ export class AdminApprovalController {
         return;
       }
 
-      // Send WebSocket notifications for real-time updates
-      try {
-        const wsService = WebSocketService.getInstance();
-        
-        // Broadcast work order update to all connected users
-        wsService.broadcast({
-          type: 'work_order_update',
-          data: {
-            workOrderId: updatedWorkOrder.id,
-            complaintId: updatedWorkOrder.complaintId,
-            status: updatedWorkOrder.status,
-            action: action,
-            updatedAt: updatedWorkOrder.updatedAt,
-          },
-          timestamp: new Date().toISOString(),
-        });
-        
-        console.log(`📡 WebSocket notification sent for work order ${action}`);
-      } catch (wsError) {
-        console.error('Failed to send WebSocket notification:', wsError);
-        // Continue with response even if WebSocket fails
-      }
 
       const response: ApiResponse = {
         success: true,

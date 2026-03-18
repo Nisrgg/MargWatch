@@ -1,0 +1,252 @@
+export type MockComplaintCategory = 'Pothole' | 'Electric Pole' | 'Fallen Tree';
+
+export interface MockComplaint {
+  id: string;
+  title: string;
+  category: MockComplaintCategory;
+  user: string;
+  status: 'Pending' | 'In Progress' | 'Resolved';
+  latitude: number;
+  longitude: number;
+  image: string;
+  createdAt: string;
+}
+
+// Base coordinates roughly around Bhopal, Madhya Pradesh
+const BASE_LAT = 23.2599;
+const BASE_LNG = 77.4126;
+
+// Helper to generate a small random offset within ~0.05 degrees
+function randomCoord(base: number): number {
+  return base + (Math.random() - 0.5) * 0.05;
+}
+
+const baseMockComplaints: MockComplaint[] = [
+  {
+    id: '1',
+    title: 'Large pothole on main road near market',
+    category: 'Pothole',
+    user: 'Nisarg',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/pothole_1.jpg',
+    createdAt: '2026-03-10T09:15:00Z',
+  },
+  {
+    id: '2',
+    title: 'Electric pole leaning dangerously towards houses',
+    category: 'Electric Pole',
+    user: 'Vishvam',
+    status: 'In Progress',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/electric_pole_1.jpg',
+    createdAt: '2026-03-09T11:30:00Z',
+  },
+  {
+    id: '3',
+    title: 'Fallen tree blocking residential street',
+    category: 'Fallen Tree',
+    user: 'Manav',
+    status: 'Resolved',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/fallen_tree_1.jpg',
+    createdAt: '2026-03-08T16:45:00Z',
+  },
+  {
+    id: '4',
+    title: 'Series of small potholes near school entrance',
+    category: 'Pothole',
+    user: 'Aryan',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/pothole_2.jpg',
+    createdAt: '2026-03-11T07:20:00Z',
+  },
+  {
+    id: '5',
+    title: 'Broken electric pole wires hanging low',
+    category: 'Electric Pole',
+    user: 'Ananya',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/electric_pole_1.jpg',
+    createdAt: '2026-03-12T10:05:00Z',
+  },
+  {
+    id: '6',
+    title: 'Uprooted tree blocking main colony gate',
+    category: 'Fallen Tree',
+    user: 'Aayushi',
+    status: 'In Progress',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/fallen_tree_2.jpg',
+    createdAt: '2026-03-13T13:40:00Z',
+  },
+  {
+    id: '7',
+    title: 'Deep pothole near bus stop',
+    category: 'Pothole',
+    user: 'Aditya',
+    status: 'Resolved',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/pothole_3.jpg',
+    createdAt: '2026-03-06T08:10:00Z',
+  },
+  {
+    id: '8',
+    title: 'Electric pole base cracked and unstable',
+    category: 'Electric Pole',
+    user: 'Dhruvraj',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/electric_pole_1.jpg',
+    createdAt: '2026-03-05T15:25:00Z',
+  },
+  {
+    id: '9',
+    title: 'Fallen tree blocking cycling track',
+    category: 'Fallen Tree',
+    user: 'Himanshu',
+    status: 'Resolved',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/fallen_tree_3.jpg',
+    createdAt: '2026-03-04T17:55:00Z',
+  },
+  {
+    id: '10',
+    title: 'Water-filled pothole near hospital entrance',
+    category: 'Pothole',
+    user: 'Nitya',
+    status: 'In Progress',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/pothole_4.jpg',
+    createdAt: '2026-03-03T06:50:00Z',
+  },
+  {
+    id: '11',
+    title: 'Street light pole sparking during rain',
+    category: 'Electric Pole',
+    user: 'Raj',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/electric_pole_1.jpg',
+    createdAt: '2026-03-02T19:15:00Z',
+  },
+  {
+    id: '12',
+    title: 'Huge fallen tree on ring road divider',
+    category: 'Fallen Tree',
+    user: 'Harsh',
+    status: 'In Progress',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/fallen_tree_4.jpg',
+    createdAt: '2026-03-01T12:05:00Z',
+  },
+  {
+    id: '13',
+    title: 'Cluster of potholes after railway crossing',
+    category: 'Pothole',
+    user: 'Shikhar',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/pothole_5.jpg',
+    createdAt: '2026-02-29T09:30:00Z',
+  },
+  {
+    id: '14',
+    title: 'Damaged electric pole near playground',
+    category: 'Electric Pole',
+    user: 'Angad',
+    status: 'Resolved',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/electric_pole_1.jpg',
+    createdAt: '2026-02-28T18:20:00Z',
+  },
+  {
+    id: '15',
+    title: 'Fallen tree damaging boundary wall',
+    category: 'Fallen Tree',
+    user: 'Sayam',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/fallen_tree_5.jpg',
+    createdAt: '2026-02-27T07:45:00Z',
+  },
+  {
+    id: '16',
+    title: 'Pothole at busy intersection causing traffic',
+    category: 'Pothole',
+    user: 'Akhsat',
+    status: 'In Progress',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/pothole_6.jpg',
+    createdAt: '2026-02-26T10:10:00Z',
+  },
+  {
+    id: '17',
+    title: 'Leaning electric pole near shop row',
+    category: 'Electric Pole',
+    user: 'Anshika',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/electric_pole_1.jpg',
+    createdAt: '2026-02-25T14:35:00Z',
+  },
+  {
+    id: '18',
+    title: 'Fallen tree blocking service lane',
+    category: 'Fallen Tree',
+    user: 'Nisarg',
+    status: 'Resolved',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/fallen_tree_6.jpg',
+    createdAt: '2026-02-24T16:00:00Z',
+  },
+  {
+    id: '19',
+    title: 'Pothole near petrol pump entrance',
+    category: 'Pothole',
+    user: 'Vishvam',
+    status: 'Pending',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/pothole_7.jpg',
+    createdAt: '2026-02-23T08:25:00Z',
+  },
+  {
+    id: '20',
+    title: 'Electric pole cables hanging at low height',
+    category: 'Electric Pole',
+    user: 'Manav',
+    status: 'In Progress',
+    latitude: BASE_LAT,
+    longitude: BASE_LNG,
+    image: '/sample_images/electric_pole_1.jpg',
+    createdAt: '2026-02-22T20:40:00Z',
+  },
+];
+
+export const mockComplaints: MockComplaint[] = baseMockComplaints.map((c) => ({
+  ...c,
+  latitude: randomCoord(BASE_LAT),
+  longitude: randomCoord(BASE_LNG),
+}));
+

@@ -10,18 +10,9 @@ export const apiConfig = {
   baseURL: process.env.API_BASE_URL || 'http://192.168.137.1:5000',
   /** API prefix - all REST routes are under /api */
   apiPrefix: '/api',
-  /** WebSocket path - connect with token in query */
-  wsPath: '/ws/notifications',
   /** Request timeout in ms */
   timeout: 30000,
 };
 
 /** Full API base URL (baseURL + apiPrefix) for axios */
 export const getApiBaseURL = () => `${apiConfig.baseURL}${apiConfig.apiPrefix}`;
-
-/** WebSocket URL - append ?token=<JWT> when connecting */
-export const getWebSocketURL = (token: string) => {
-  const wsProtocol = apiConfig.baseURL.startsWith('https') ? 'wss' : 'ws';
-  const host = apiConfig.baseURL.replace(/^https?:\/\//, '');
-  return `${wsProtocol}://${host}${apiConfig.wsPath}?token=${encodeURIComponent(token)}`;
-};

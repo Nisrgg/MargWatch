@@ -12,8 +12,9 @@ interface DashboardHeaderCardProps {
 export function DashboardHeaderCard({ user }: DashboardHeaderCardProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.greeting}>Hello, {user?.firstName ?? 'User'}</Text>
-      <Text style={styles.subtitle}>What would you like to do?</Text>
+      <Text style={styles.subtitle}>
+        Monitor complaints, work orders, and field activity in one place.
+      </Text>
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { TouchableOpacity, Text } from 'react-native';
 import { MainStackParamList } from '../navigation/MainNavigator';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
 import { SectionHeader } from '../components/layout/SectionHeader';
@@ -32,7 +33,14 @@ export default function HeatMapScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <SectionHeader title="Heat map" />
+      <SectionHeader
+        title="Heat map"
+        right={
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={{ color: '#F97316', fontWeight: '600' }}>{'\u2039'} Back</Text>
+          </TouchableOpacity>
+        }
+      />
       <ScreenState loading={isLoading} error={error}>
         <ScreenBody>
           {region && <HeatmapMap points={heatMapData} region={region} />}

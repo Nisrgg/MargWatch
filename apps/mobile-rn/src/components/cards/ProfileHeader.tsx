@@ -10,22 +10,21 @@ interface ProfileHeaderProps {
 }
 
 export function ProfileHeader({ user }: ProfileHeaderProps) {
-  if (!user) return null;
   return (
     <SectionCard>
       <View style={styles.row}>
         <View style={styles.avatar}>
           <Text style={styles.avatarInitials}>
-            {(user.firstName?.[0] ?? '').toUpperCase()}
-            {(user.lastName?.[0] ?? '').toUpperCase()}
+            N
+            G
           </Text>
         </View>
         <View style={styles.texts}>
           <Text style={styles.name}>
-            {user.firstName} {user.lastName}
+            Nisarg Gajjar
           </Text>
-          <Text style={styles.email}>{user.email}</Text>
-          <Text style={styles.role}>Role: {user.role}</Text>
+          <Text style={styles.email}>nisarg@roadportal.com</Text>
+          {user?.role ? <Text style={styles.role}>Role: {user.role}</Text> : null}
         </View>
       </View>
     </SectionCard>
@@ -54,11 +53,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   name: {
-    ...typography.titleMedium,
+    ...typography.headlineSmall,
     color: colors.onSurface,
   },
   email: {
-    ...typography.bodySmall,
+    ...typography.bodyMedium,
     color: colors.onSurfaceVariant,
   },
   role: {

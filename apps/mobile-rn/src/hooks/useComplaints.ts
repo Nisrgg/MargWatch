@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from './useAuth';
 import { complaintsApi } from '../api/complaintsApi';
 import type { ComplaintFilters } from '@margwatch/shared-types';
 
@@ -12,7 +11,6 @@ export const complaintsKeys = {
 };
 
 export function useComplaintsList(filters?: ComplaintFilters) {
-  const { token } = useAuth();
   return useQuery({
     queryKey: complaintsKeys.myList(filters),
     queryFn: async () => {
@@ -20,12 +18,12 @@ export function useComplaintsList(filters?: ComplaintFilters) {
       if (!data.success || !data.data) throw new Error(data.message);
       return data.data;
     },
-    enabled: !!token,
+    // Always enabled in demo mode
+    enabled: true,
   });
 }
 
 export function useComplaintDetail(id: string | null) {
-  const { token } = useAuth();
   return useQuery({
     queryKey: complaintsKeys.detail(id ?? ''),
     queryFn: async () => {
@@ -34,7 +32,7 @@ export function useComplaintDetail(id: string | null) {
       if (!data.success || !data.data?.complaint) throw new Error(data.message);
       return data.data.complaint;
     },
-    enabled: !!token && !!id,
+    enabled: !!id,
   });
 }
 

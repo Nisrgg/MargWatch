@@ -1,19 +1,13 @@
 import geolocationService from './geolocationService';
+import { getCategoryLabel } from '../config/uiTexts';
 
 export class ComplaintGenerationService {
   /**
    * Generate automatic title based on ML category and location
    */
   static generateTitle(category: string, latitude: number, longitude: number, address?: string): string {
-    const categoryTitles: { [key: string]: string } = {
-      'POTHOLE': 'Pothole Reported',
-      'ROAD_INSTABILITY': 'Road Surface Issue',
-      'STREETLIGHT_DAMAGE': 'Streetlight Problem',
-      'TREE_DAMAGE': 'Tree or Vegetation Issue',
-      'OTHER': 'Road Issue Reported'
-    };
-
-    const baseTitle = categoryTitles[category] || 'Road Issue Reported';
+    const label = getCategoryLabel(category);
+    const baseTitle = label ? `${label} Reported` : 'Road Issue Reported';
     
     if (address) {
       // Extract street name from address

@@ -4,6 +4,7 @@ import type { Complaint } from '@margwatch/shared-types';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, borderRadius } from '../theme/spacing';
+import { useConfig } from '../hooks/useConfig';
 
 interface ComplaintCardProps {
   complaint: Complaint;
@@ -11,11 +12,12 @@ interface ComplaintCardProps {
 }
 
 export function ComplaintCard({ complaint, onPress }: ComplaintCardProps) {
+  const { formatCategory } = useConfig();
   const content = (
     <View style={styles.card}>
       <Text style={styles.title} numberOfLines={2}>{complaint.title}</Text>
       <Text style={styles.status}>{complaint.status}</Text>
-      <Text style={styles.category}>{complaint.category}</Text>
+      <Text style={styles.category}>{formatCategory(complaint.category)}</Text>
       {complaint.address ? (
         <Text style={styles.address} numberOfLines={1}>{complaint.address}</Text>
       ) : null}

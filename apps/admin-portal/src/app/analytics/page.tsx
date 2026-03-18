@@ -103,12 +103,17 @@ export default function AnalyticsPage() {
       if (response.success && response.data) {
         // Transform the data for charts
         const data = response.data.analytics;
+        const safeHeatMapData = (data.heatMapData || []).map((point: any) => ({
+          ...point,
+          lat: point?.lat != null ? Number(point.lat) : NaN,
+          lng: point?.lng != null ? Number(point.lng) : NaN,
+        }));
         setAnalyticsData({
           complaintsOverTime: data.complaintsOverTime || [],
           complaintsByCategory: data.complaintsByCategory || [],
           complaintsByStatus: data.complaintsByStatus || [],
           workerPerformance: data.workerPerformance || [],
-          heatMapData: data.heatMapData || [],
+          heatMapData: safeHeatMapData,
           avgResolutionTime: data.avgResolutionTime || 0,
           period: data.period || 30,
           totalComplaints: data.totalComplaints || 0,
@@ -374,7 +379,12 @@ export default function AnalyticsPage() {
                     <div className="flex items-center space-x-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm font-medium">
-                        {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
+                        {typeof location.lat === 'number' &&
+                        typeof location.lng === 'number' &&
+                        !Number.isNaN(location.lat) &&
+                        !Number.isNaN(location.lng)
+                          ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
+                          : 'Unknown location'}
                       </span>
                     </div>
                     <Badge

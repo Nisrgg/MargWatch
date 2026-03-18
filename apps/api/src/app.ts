@@ -15,6 +15,7 @@ import workOrderRoutes from './routes/workOrders';
 import adminRoutes from './routes/admin';
 import adminApprovalRoutes from './routes/adminApproval';
 import notificationRoutes from './routes/notifications';
+import configRoutes from './routes/config';
 
 // Import middleware
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
@@ -282,6 +283,7 @@ app.use('/api/work-orders', workOrderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin-approval', adminApprovalRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/config', configRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -296,6 +298,7 @@ app.get('/', (req, res) => {
       admin: '/api/admin',
       adminApproval: '/api/admin-approval',
       ml: '/api/ml',
+      config: '/api/config',
       health: '/health',
     },
   });
@@ -320,6 +323,5 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-// Export app and WebSocket service for initialization
-export { WebSocketService } from './services/websocketService';
+// Export app for initialization
 export default app;

@@ -25,8 +25,8 @@ import { cn, formatDate, formatNumber, formatComplaintStatus } from '@/lib/utils
 import toast from 'react-hot-toast';
 import { useDashboardData } from '@/hooks/useDashboardQueries';
 import { useQueryClient } from '@tanstack/react-query';
-import { useDashboardWebSocket } from '@/hooks/useWebSocket';
 import authUtils from '@/utils/auth';
+import { updateMockComplaintStatus } from '@/data/mockComplaints';
 
 // Status color mapping for badges
 const statusColors = {
@@ -127,24 +127,6 @@ export default function DashboardPage() {
     isRefetching,
   } = useDashboardData();
 
-  // WebSocket connection for real-time updates - only connect when authenticated
-  const token = isAuthenticated && user ? authUtils.getToken() : undefined;
-  
-  // Debug logging for WebSocket connection
-  console.log('📊 Dashboard WebSocket state:', {
-    isAuthenticated,
-    authLoading,
-    hasUser: !!user,
-    hasToken: !!token,
-    tokenPreview: token ? `${token.substring(0, 20)}...` : 'null',
-    autoConnect: !authLoading
-  });
-  
-  const { isConnected: isWebSocketConnected } = useDashboardWebSocket(
-    queryClient, 
-    token
-  );
-
   // Redirect if not authenticated
   if (!authLoading && !isAuthenticated) {
     router.push('/login');
@@ -158,6 +140,22 @@ export default function DashboardPage() {
     } catch (error) {
       toast.error('Failed to refresh data');
     }
+  };
+
+  const handleDemoStatusUpdate = async (
+    complaintId: string,
+    status: 'Pending' | 'In Progress' | 'Resolved',
+  ) => {
+    const updated = updateMockComplaintStatus(complaintId, status);
+    if (!updated) {
+      toast.error(`Failed to update complaint #${complaintId} in demo mode`);
+      return;
+    }
+
+    await refetch();
+    toast.success(
+      `Complaint #${complaintId} status updated to ${status} (demo mode)`,
+    );
   };
 
   if (authLoading || isLoading) {
@@ -256,6 +254,13 @@ export default function DashboardPage() {
   return (
     <Layout>
       <div className="space-y-8">
+        {/* Demo Mode Banner */}
+        <div className="rounded-md border border-yellow-300 bg-yellow-50 px-4 py-2 text-sm text-yellow-900">
+          <span className="font-semibold">Demo Mode</span>
+          <span className="mx-2">—</span>
+          <span>Data is simulated</span>
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -265,20 +270,6 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center space-x-3">
-            {/* WebSocket Connection Status */}
-            <div className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-gray-50">
-              {isWebSocketConnected ? (
-                <>
-                  <Wifi className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-600 font-medium">Live</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-4 w-4 text-red-600" />
-                  <span className="text-sm text-red-600 font-medium">Offline</span>
-                </>
-              )}
-            </div>
             <Button 
               variant="outline" 
               size="sm" 
@@ -348,6 +339,7 @@ export default function DashboardPage() {
                       <TableHead>Status</TableHead>
                       <TableHead>User</TableHead>
                       <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -376,6 +368,40 @@ export default function DashboardPage() {
                         </TableCell>
                         <TableCell className="text-sm text-gray-500">
                           {formatDate(complaint.createdAt)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
+                            {complaint.status === 'Pending' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  handleDemoStatusUpdate(
+                                    complaint.id,
+                                    'In Progress',
+                                  )
+                                }
+                              >
+                                <Clock className="h-4 w-4 mr-1" />
+                                In Progress
+                              </Button>
+                            )}
+                            {complaint.status === 'In Progress' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  handleDemoStatusUpdate(
+                                    complaint.id,
+                                    'Resolved',
+                                  )
+                                }
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Resolved
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

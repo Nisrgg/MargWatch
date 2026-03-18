@@ -8,12 +8,14 @@ interface SubmissionSummaryCardProps {
   imageCount: number;
   hasLocation: boolean;
   hasDescription?: boolean;
+  addressLabel?: string;
 }
 
 export function SubmissionSummaryCard({
   imageCount,
   hasLocation,
   hasDescription,
+  addressLabel,
 }: SubmissionSummaryCardProps) {
   return (
     <SectionCard>
@@ -22,7 +24,12 @@ export function SubmissionSummaryCard({
         Photos: {imageCount > 0 ? `${imageCount} attached` : 'None'}
       </Text>
       <Text style={styles.item}>
-        Location: {hasLocation ? 'Selected' : 'Not selected'}
+        Location:{' '}
+        {addressLabel
+          ? addressLabel
+          : hasLocation
+          ? 'Selected'
+          : 'Not selected'}
       </Text>
       {hasDescription !== undefined && (
         <Text style={styles.item}>

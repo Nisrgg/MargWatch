@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { AuthUser } from '@/types';
 import authUtils from '@/utils/auth';
-import apiClient from '@/lib/api';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -21,56 +20,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const token = authUtils.getToken();
-        const savedUser = authUtils.getUser();
-        
-        if (token && savedUser) {
-          setUser(savedUser);
-          // Optionally verify token with server
-          try {
-            await apiClient.getDashboardStats();
-          } catch (error) {
-            // Token is invalid, clear auth
-            authUtils.logout();
-            setUser(null);
-          }
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        authUtils.logout();
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initAuth();
+    // In demo mode, we don't restore any persisted auth; start unauthenticated
+    setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const response = await apiClient.login({ email, password });
-      
-      if (response.success && response.data) {
-        const { user: userData, token } = response.data;
-        
-        // Verify user is admin
-        if (userData.role !== 'ADMIN') {
-          throw new Error('Access denied. Admin privileges required.');
-        }
-        
-        authUtils.setToken(token);
-        authUtils.setUser(userData);
-        setUser(userData);
+      if (email === 'admin@roadportal.com' && password === 'admin123') {
+        const demoUser: AuthUser = {
+          id: 'demo-admin',
+          email: 'admin@roadportal.com',
+          role: 'ADMIN',
+          firstName: 'Demo',
+          lastName: 'Admin',
+        };
+        // In demo mode we don't need a real token; just store user for convenience
+        authUtils.setUser(demoUser);
+        setUser(demoUser);
       } else {
-        throw new Error(response.message || 'Login failed');
+        throw new Error('Invalid credentials for demo mode');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
     } finally {
       setIsLoading(false);
     }

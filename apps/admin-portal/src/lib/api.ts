@@ -1,5 +1,4 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import Cookies from 'js-cookie';
 import { 
   ApiResponse, 
   AuthResponse, 
@@ -16,11 +15,29 @@ import {
   WorkOrderFilters, 
   CreateWorkerForm, 
   UpdateUserStatusForm, 
-  UpdateComplaintStatusForm, 
   CreateWorkOrderForm, 
   UpdateWorkStatusForm, 
   WorkOrderApprovalForm 
 } from '@/types';
+import { mockComplaints } from '@/data/mockComplaints';
+
+export interface CategoryDisplay {
+  id: string;
+  label: string;
+  colorClass: string;
+}
+export interface StatusDisplay {
+  id: string;
+  label: string;
+  colorClass: string;
+}
+export interface ConfigTexts {
+  categories: CategoryDisplay[];
+  complaintStatuses: StatusDisplay[];
+  workOrderStatuses: StatusDisplay[];
+  userRoles: Record<string, string>;
+  priorities: Record<number, string>;
+}
 
 class ApiClient {
   private client: AxiosInstance;
@@ -28,66 +45,110 @@ class ApiClient {
   constructor() {
     this.client = axios.create({
       baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
-      timeout: 30000, // 30s — increase if API is on another machine or slow
+      timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
       },
     });
-
-    // Request interceptor to add auth token
-    this.client.interceptors.request.use(
-      (config) => {
-        const token = Cookies.get('admin_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-      },
-      (error) => {
-        return Promise.reject(error);
-      }
-    );
-
-    // Response interceptor to handle auth errors
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          Cookies.remove('admin_token');
-          window.location.href = '/login';
-        }
-        
-        // Handle connection errors
-        if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-          console.error('Backend server is not running. Please start the backend server on port 5000.');
-          // You can show a user-friendly message here
-        }
-        
-        return Promise.reject(error);
-      }
-    );
   }
 
-  // Auth API
+  /** Fetch UI config (categories, statuses, labels) - no auth required */
+  async getConfig(): Promise<ApiResponse<ConfigTexts>> {
+    try {
+      const res = await this.client.get<ApiResponse<ConfigTexts>>('/config');
+      return res.data;
+    } catch {
+      return { success: false, message: 'Failed to load config', data: undefined as unknown as ConfigTexts };
+    }
+  }
+
+  // Auth API - disabled in demo mode
   async login(credentials: LoginForm): Promise<AuthResponse> {
-    const response: AxiosResponse<AuthResponse> = await this.client.post('/auth/login', credentials);
-    return response.data;
+    throw new Error('API login is disabled in demo mode');
   }
 
   async logout(): Promise<void> {
-    await this.client.post('/auth/logout');
-    Cookies.remove('admin_token');
+    // No-op in demo mode; token cookies are not used
   }
 
   // Dashboard API
   async getDashboardStats(): Promise<ApiResponse<{ stats: DashboardStats }>> {
-    const response: AxiosResponse<ApiResponse<{ stats: DashboardStats }>> = await this.client.get('/admin/dashboard');
-    return response.data;
+    const total = mockComplaints.length;
+    const pending = mockComplaints.filter(c => c.status === 'Pending').length;
+    const inProgress = mockComplaints.filter(c => c.status === 'In Progress').length;
+    const resolved = mockComplaints.filter(c => c.status === 'Resolved').length;
+
+    const stats: DashboardStats = {
+      complaints: {
+        total,
+        pending,
+        processing: inProgress,
+        completed: resolved,
+      } as any,
+      users: {
+        total: 16,
+        workers: 4,
+      } as any,
+      workOrders: {
+        active: inProgress,
+      } as any,
+    };
+
+    return {
+      success: true,
+      message: 'Dashboard stats (demo mode)',
+      data: { stats },
+    };
   }
 
   async getComplaintAnalytics(period: number = 30): Promise<ApiResponse<{ analytics: ComplaintAnalytics }>> {
-    const response: AxiosResponse<ApiResponse<{ analytics: ComplaintAnalytics }>> = await this.client.get(`/admin/analytics?period=${period}`);
-    return response.data;
+    const now = new Date();
+    const days: { date: string; count: number }[] = [];
+    for (let i = period - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const count = mockComplaints.filter(c => c.createdAt.slice(0, 10) === key).length;
+      days.push({ date: key, count });
+    }
+
+    const byCategoryMap = new Map<string, number>();
+    const byStatusMap = new Map<string, number>();
+
+    mockComplaints.forEach(c => {
+      byCategoryMap.set(c.category, (byCategoryMap.get(c.category) ?? 0) + 1);
+      byStatusMap.set(c.status, (byStatusMap.get(c.status) ?? 0) + 1);
+    });
+
+    const complaintsOverTime = days;
+    const complaintsByCategory = Array.from(byCategoryMap.entries()).map(([category, count]) => ({
+      category,
+      count,
+      percentage: Math.round((count / mockComplaints.length) * 100),
+    })) as any;
+
+    const complaintsByStatus = Array.from(byStatusMap.entries()).map(([status, count]) => ({
+      status,
+      count,
+    })) as any;
+
+    const analytics: ComplaintAnalytics = {
+      complaintsOverTime,
+      complaintsByCategory,
+      complaintsByStatus,
+      avgResolutionTime: 0,
+      period,
+      totalComplaints: mockComplaints.length,
+      completedComplaints: mockComplaints.filter(c => c.status === 'Resolved').length,
+      workerPerformance: [],
+      heatMapData: [],
+    } as any;
+
+    return {
+      success: true,
+      message: 'Analytics (demo mode)',
+      data: { analytics },
+    };
   }
 
   async getWorkerPerformance(period: number = 30): Promise<ApiResponse<{ performance: WorkerPerformance[] }>> {
@@ -120,15 +181,62 @@ class ApiClient {
 
   // Complaints API
   async getAllComplaints(filters: ComplaintFilters = {}): Promise<ApiResponse<{ complaints: Complaint[]; pagination: Pagination }>> {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        params.append(key, value.toString());
-      }
-    });
-    
-    const response: AxiosResponse<ApiResponse<{ complaints: Complaint[]; pagination: Pagination }>> = await this.client.get(`/complaints?${params.toString()}`);
-    return response.data;
+    let items = mockComplaints.slice();
+
+    if (filters.status) {
+      items = items.filter(c => c.status === filters.status);
+    }
+    if (filters.category) {
+      items = items.filter(c => c.category === filters.category);
+    }
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      items = items.filter(c => c.title.toLowerCase().includes(q) || c.user.toLowerCase().includes(q));
+    }
+
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? items.length;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const slice = items.slice(start, end).map((c) => ({
+      id: c.id,
+      title: c.title,
+      description: c.title,
+      category: c.category as any,
+      status: c.status as any,
+      latitude: c.latitude,
+      longitude: c.longitude,
+      address: '',
+      imageUrl: c.image,
+      imageCount: 1,
+      mlCategory: null as any,
+      mlConfidence: null as any,
+      mlModelVersion: null as any,
+      mlProcessingTime: null as any,
+      severity: null as any,
+      rejectionReason: null,
+      user: {
+        id: 'demo-user',
+        firstName: c.user,
+        lastName: '',
+        email: 'user@roadportal.com',
+      } as any,
+      createdAt: c.createdAt,
+      updatedAt: c.createdAt,
+    })) as Complaint[];
+
+    const pagination: Pagination = {
+      page,
+      limit,
+      total: items.length,
+      pages: Math.max(1, Math.ceil(items.length / limit)),
+    };
+
+    return {
+      success: true,
+      message: 'Complaints (demo mode)',
+      data: { complaints: slice, pagination },
+    };
   }
 
   async getComplaintById(id: string): Promise<ApiResponse<{ complaint: Complaint }>> {
@@ -142,15 +250,23 @@ class ApiClient {
   }
 
   async getHeatMapData(filters: { category?: string; dateFrom?: string; dateTo?: string } = {}): Promise<ApiResponse<{ heatMapData: any }>> {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        params.append(key, value.toString());
-      }
-    });
-    
-    const response: AxiosResponse<ApiResponse<{ heatMapData: any }>> = await this.client.get(`/complaints/heatmap?${params.toString()}`);
-    return response.data;
+    let items = mockComplaints.slice();
+    if (filters.category) {
+      items = items.filter(c => c.category === filters.category);
+    }
+
+    const heatMapData = items.map(c => ({
+      latitude: c.latitude,
+      longitude: c.longitude,
+      category: c.category,
+      status: c.status,
+    }));
+
+    return {
+      success: true,
+      message: 'Heatmap (demo mode)',
+      data: { heatMapData },
+    };
   }
 
   // Work Orders API

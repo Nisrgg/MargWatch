@@ -5,12 +5,12 @@ import messaging from '@react-native-firebase/messaging';
 import { AuthProvider, useAuth } from './src/store/AuthContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { registerFcmTokenIfNeeded } from './src/services/fcmService';
-import { useWebSocket } from './src/hooks/useWebSocket';
 import { complaintsKeys } from './src/hooks/useComplaints';
 import { workOrdersKeys } from './src/hooks/useWorkOrders';
 import { notificationsKeys } from './src/hooks/useNotifications';
 import { SnackbarProvider } from './src/components/feedback/SnackbarProvider';
 import { logger } from './src/utils/logger';
+import { initDemoData } from './src/data/initDemoData';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,25 +29,6 @@ function FcmRegistration() {
       registerFcmTokenIfNeeded(registerFcmToken).catch(() => {});
     }
   }, [isAuthenticated, registerFcmToken]);
-  return null;
-}
-
-/** Invalidate caches when WebSocket events arrive (complaint_created, complaint_update, work_order_update). */
-function WebSocketInvalidation() {
-  const { token, isAuthenticated } = useAuth();
-  const qc = useQueryClient();
-  useWebSocket({
-    token: isAuthenticated ? token : null,
-    enabled: isAuthenticated,
-    onMessage: () => {
-      logger.debug('WebSocket message received, invalidating caches', {
-        tokenPresent: !!token,
-      });
-      qc.invalidateQueries({ queryKey: complaintsKeys.all });
-      qc.invalidateQueries({ queryKey: workOrdersKeys.all });
-      qc.invalidateQueries({ queryKey: notificationsKeys.all });
-    },
-  });
   return null;
 }
 
@@ -86,12 +67,15 @@ function FcmHandlers() {
 }
 
 export default function App() {
+  useEffect(() => {
+    initDemoData().catch(() => {});
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SafeAreaProvider>
           <SnackbarProvider>
-            <WebSocketInvalidation />
             <FcmHandlers />
             <FcmRegistration />
             <RootNavigator />

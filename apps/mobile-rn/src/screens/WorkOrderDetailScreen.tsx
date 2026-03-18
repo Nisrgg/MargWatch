@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
+import { Alert, TouchableOpacity, Text } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MainStackParamList } from '../navigation/MainNavigator';
 import { ScreenContainer } from '../components/layout/ScreenContainer';
@@ -95,7 +95,14 @@ export default function WorkOrderDetailScreen({ route, navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <SectionHeader title="Work order" />
+      <SectionHeader
+        title="Work order"
+        right={
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={{ color: '#F97316', fontWeight: '600' }}>{'\u2039'} Back</Text>
+          </TouchableOpacity>
+        }
+      />
       <ScreenState loading={isLoading} error={error}>
         <ScreenBody>
           <WorkOrderDetailCard workOrder={workOrder} />

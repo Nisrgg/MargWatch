@@ -38,11 +38,10 @@
 - **Real-time:** WebSocket for notifications
 
 ### Machine Learning
-- **ML Framework:** PyTorch 2.1.0, TorchVision 0.16.0
-- **Model:** Pre-trained ResNet18 (customized for 5 road issue categories)
-- **API:** Flask with CORS support
-- **Image Processing:** Pillow (PIL), OpenCV-compatible preprocessing
-- **Batch Processing:** Efficient handling of multiple images
+- **ML Model:** YOLOv8 combined model (pothole, fallen_tree, electric_pole) in `ml-model/MLModel/`
+- **ML API Server:** FastAPI in `ml-model/MLModel/api_server.py` — run with `python api_server.py` (port 8000). See `ml-model/MLModel/API_README.md`.
+- **Backend integration:** Set `ML_SERVICE_URL` (e.g. `http://localhost:8000`) so the API calls the ML service for complaint image classification.
+- **Batch Processing:** Single and batch prediction endpoints; backend fetches images from Cloudinary and forwards to the ML API.
 
 ### Infrastructure & DevOps
 - **Containerization:** Docker, Docker Compose
@@ -82,9 +81,10 @@ That's it! The entire system is now running. 🎉
 
 ### Run without Docker (Node only)
 
-To run the **API** and **Admin Portal** with Node.js only (no Docker, ML service disabled with hardcoded bypass):
+To run the **API** and **Admin Portal** with Node.js only (no Docker; optionally run the ML API from `ml-model/MLModel/api_server.py`):
 
 - See **[docs/RUN_WITHOUT_DOCKER.md](docs/RUN_WITHOUT_DOCKER.md)** for commands and setup.
+- **UI config:** Admin and mobile apps fetch labels from `GET /api/config` so category/status text is not hardcoded.
 - For the **React Native app** (device/emulator, Firebase, API URL): see **[docs/MOBILE_RN_SETUP.md](docs/MOBILE_RN_SETUP.md)**.
 
 ## 🌐 Access Points

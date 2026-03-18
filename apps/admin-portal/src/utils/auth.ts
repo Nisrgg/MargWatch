@@ -1,24 +1,10 @@
-import Cookies from 'js-cookie';
 import { AuthUser } from '@/types';
 
 // Helper function to check if we're on the client side
 const isClient = typeof window !== 'undefined';
 
 export const authUtils = {
-  // Token management
-  setToken(token: string): void {
-    Cookies.set('admin_token', token, { expires: 7, secure: true, sameSite: 'strict' });
-  },
-
-  getToken(): string | undefined {
-    return Cookies.get('admin_token');
-  },
-
-  removeToken(): void {
-    Cookies.remove('admin_token');
-  },
-
-  // User data management
+  // User data management (demo mode)
   setUser(user: AuthUser): void {
     if (isClient) {
       localStorage.setItem('admin_user', JSON.stringify(user));
@@ -44,9 +30,8 @@ export const authUtils = {
 
   // Auth state
   isAuthenticated(): boolean {
-    return !!this.getToken() && !!this.getUser();
+    return !!this.getUser();
   },
-
   isAdmin(): boolean {
     const user = this.getUser();
     return user?.role === 'ADMIN';
@@ -54,7 +39,6 @@ export const authUtils = {
 
   // Logout
   logout(): void {
-    this.removeToken();
     this.removeUser();
   },
 

@@ -3,7 +3,6 @@ import { body, query, validationResult } from 'express-validator';
 import { prisma } from '../config/database';
 import { AuthenticatedRequest, ApiResponse, PaginationParams, FilterParams } from '../types';
 import { FirebaseNotificationService } from '../services/firebaseNotificationService';
-import { WebSocketService } from '../services/websocketService';
 import { ComplaintStatus, IssueCategory } from '@margwatch/shared-types';
 import mlService from '../services/mlService';
 import geolocationService from '../services/geolocationService';
@@ -223,30 +222,6 @@ export class ComplaintController {
       } catch (notificationError) {
         console.error('Failed to create notifications:', notificationError);
         // Continue with response even if notifications fail
-      }
-
-      // Send WebSocket notifications for real-time updates
-      try {
-        const wsService = WebSocketService.getInstance();
-        
-        // Broadcast complaint creation to all connected users
-        wsService.broadcast({
-          type: 'complaint_created',
-          data: {
-            complaintId: complaint.id,
-            title: complaint.title,
-            status: complaint.status,
-            category: complaint.category,
-            userId: complaint.userId,
-            createdAt: complaint.createdAt,
-          },
-          timestamp: new Date().toISOString(),
-        });
-        
-        console.log('📡 WebSocket notification sent for new complaint');
-      } catch (wsError) {
-        console.error('Failed to send WebSocket notification:', wsError);
-        // Continue with response even if WebSocket fails
       }
 
       // Send response after notifications are sent

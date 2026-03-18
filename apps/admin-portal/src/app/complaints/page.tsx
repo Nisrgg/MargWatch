@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import apiClient from '@/lib/api';
 import { Complaint, ComplaintFilters, Pagination } from '@/types';
 import { useNotificationService } from '@/hooks/useNotificationService';
+import { updateMockComplaintStatus } from '@/data/mockComplaints';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,13 +54,15 @@ import {
   User,
   Image as ImageIcon,
 } from 'lucide-react';
-import { cn, formatDate, formatRelativeTime, formatNumber, getStatusColor, getCategoryColor, formatComplaintStatus, formatCategory, truncateText, parseImageUrls } from '@/lib/utils';
+import { cn, formatDate, formatRelativeTime, formatNumber, truncateText, parseImageUrls } from '@/lib/utils';
+import { useConfig } from '@/hooks/useConfig';
 import toast from 'react-hot-toast';
 
 export default function ComplaintsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const { notifySuccess, notifyError } = useNotificationService();
+  const { formatCategory, getCategoryColor, formatComplaintStatus, getStatusColor, categories } = useConfig();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,31 +100,38 @@ export default function ComplaintsPage() {
     }
   };
 
-  const handleStatusUpdate = async (complaintId: string, status: string, description?: string) => {
-    try {
-      const response = await apiClient.updateComplaintStatus(complaintId, { status, description });
-      if (response.success) {
-        notifySuccess(
-          'Complaint Status Updated',
-          `Complaint #${complaintId} status has been updated to ${status}.`,
-          {
-            label: 'View Details',
-            onClick: () => {
-              setSelectedComplaint(complaints.find(c => c.id === complaintId) || null);
-              setIsModalOpen(true);
-            },
-          }
-        );
-        fetchComplaints();
-        setIsModalOpen(false);
-        setSelectedComplaint(null);
-      }
-    } catch (error) {
-      console.error('Failed to update complaint status:', error);
+  const handleStatusUpdate = (complaintId: string, status: 'Pending' | 'In Progress' | 'Resolved') => {
+    const updated = updateMockComplaintStatus(complaintId, status);
+    if (!updated) {
       notifyError(
         'Update Failed',
-        `Failed to update complaint #${complaintId} status. Please try again.`
+        `Failed to update complaint #${complaintId} status in demo mode.`,
       );
+      return;
+    }
+
+    notifySuccess(
+      'Complaint Status Updated',
+      `Complaint #${complaintId} status has been updated to ${status}.`,
+      {
+        label: 'View Details',
+        onClick: () => {
+          setSelectedComplaint(
+            complaints.find((c) => c.id === complaintId) || null,
+          );
+          setIsModalOpen(true);
+        },
+      },
+    );
+
+    // Refresh local table data from mock dataset
+    fetchComplaints();
+
+    if (selectedComplaint?.id === complaintId) {
+      setSelectedComplaint({
+        ...selectedComplaint,
+        status,
+      });
     }
   };
 
@@ -231,11 +241,11 @@ export default function ComplaintsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="POTHOLE">Pothole</SelectItem>
-                    <SelectItem value="ROAD_INSTABILITY">Road Instability</SelectItem>
-                    <SelectItem value="STREETLIGHT_DAMAGE">Streetlight Damage</SelectItem>
-                    <SelectItem value="TREE_DAMAGE">Tree Damage</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -353,25 +363,29 @@ export default function ComplaintsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {complaint.status === 'REGISTERED' && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStatusUpdate(complaint.id, 'APPROVED')}
-                                className="text-success-600 hover:text-success-700"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStatusUpdate(complaint.id, 'REJECTED')}
-                                className="text-destructive hover:text-destructive/80"
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            </>
+                          {complaint.status === 'Pending' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                handleStatusUpdate(complaint.id, 'In Progress')
+                              }
+                              className="text-success-600 hover:text-success-700"
+                            >
+                              <Clock className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {complaint.status === 'In Progress' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                handleStatusUpdate(complaint.id, 'Resolved')
+                              }
+                              className="text-success-600 hover:text-success-700"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </TableCell>
@@ -441,6 +455,24 @@ export default function ComplaintsPage() {
                       {formatCategory(selectedComplaint.category)}
                     </Badge>
                   </div>
+                  {(selectedComplaint.mlCategory != null ||
+                    (selectedComplaint.mlConfidence != null && selectedComplaint.mlConfidence > 0) ||
+                    selectedComplaint.mlModelVersion != null) && (
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="text-sm font-medium">ML prediction</label>
+                      <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
+                        {selectedComplaint.mlCategory != null && (
+                          <span>Category: {formatCategory(selectedComplaint.mlCategory)}</span>
+                        )}
+                        {selectedComplaint.mlConfidence != null && selectedComplaint.mlConfidence > 0 && (
+                          <span>Confidence: {(selectedComplaint.mlConfidence * 100).toFixed(0)}%</span>
+                        )}
+                        {selectedComplaint.mlModelVersion != null && (
+                          <span>Model: {selectedComplaint.mlModelVersion}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Status</label>
                     <Badge variant="outline" className={cn(getStatusColor(selectedComplaint.status))}>
@@ -503,21 +535,28 @@ export default function ComplaintsPage() {
                   </div>
                 </div>
 
-                {/* Actions */}
-                {selectedComplaint.status === 'REGISTERED' && (
+                {/* Actions (demo mode status transitions) */}
+                {selectedComplaint.status === 'Pending' && (
                   <DialogFooter>
                     <Button
-                      variant="destructive"
-                      onClick={() => handleStatusUpdate(selectedComplaint.id, 'REJECTED')}
+                      onClick={() =>
+                        handleStatusUpdate(selectedComplaint.id, 'In Progress')
+                      }
                     >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Reject
+                      <Clock className="h-4 w-4 mr-2" />
+                      Mark In Progress
                     </Button>
+                  </DialogFooter>
+                )}
+                {selectedComplaint.status === 'In Progress' && (
+                  <DialogFooter>
                     <Button
-                      onClick={() => handleStatusUpdate(selectedComplaint.id, 'APPROVED')}
+                      onClick={() =>
+                        handleStatusUpdate(selectedComplaint.id, 'Resolved')
+                      }
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Approve
+                      Mark Resolved
                     </Button>
                   </DialogFooter>
                 )}

@@ -175,6 +175,7 @@ test-*.bat
 # Upload directories
 uploads/
 MargWatch/app/src/main/assets/uploads/
+ml-model/
 
 # ML Models (large files)
 ml-service/models/

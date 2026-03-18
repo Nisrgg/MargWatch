@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, TouchableOpacity, Text, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { launchCamera, launchImageLibrary, ImagePickerResponse } from 'react-native-image-picker';
 import { MainStackParamList } from '../navigation/MainNavigator';
@@ -27,7 +27,9 @@ export default function ComplaintSubmissionScreen({ navigation }: Props) {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [addressLabel, setAddressLabel] = useState<string>('');
+  const [addressLabel, setAddressLabel] = useState<string>(
+    'E-4, Arera Colony, Bhopal, Madhya Pradesh 462016',
+  );
   const [description, setDescription] = useState('');
 
   const submitMutation = useSubmitComplaint();
@@ -116,7 +118,14 @@ export default function ComplaintSubmissionScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <SectionHeader title="Submit complaint" />
+      <SectionHeader
+        title="Submit complaint"
+        right={
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={{ color: '#F97316', fontWeight: '600' }}>{'\u2039'} Back</Text>
+          </TouchableOpacity>
+        }
+      />
       <ScreenState loading={submitMutation.isPending}>
         <ScreenBody>
           <ImageCaptureSection
@@ -142,6 +151,7 @@ export default function ComplaintSubmissionScreen({ navigation }: Props) {
             imageCount={imageUris.length}
             hasLocation={latitude != null && longitude != null}
             hasDescription={!!description.trim()}
+            addressLabel={addressLabel}
           />
 
           <FormActions>
@@ -156,6 +166,7 @@ export default function ComplaintSubmissionScreen({ navigation }: Props) {
               onPress={getLocation}
               loading={locationLoading}
             />
+            <View style={{ height: 12 }} />
             <MWButton
               title={submitMutation.isPending ? 'Submitting…' : 'Submit complaint'}
               onPress={handleSubmit}
